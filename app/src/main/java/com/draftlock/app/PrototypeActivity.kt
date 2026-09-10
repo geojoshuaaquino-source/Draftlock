@@ -56,10 +56,7 @@ private fun DraftLockPrototype(vm: DraftLockViewModel = viewModel()) {
     val text by vm.text.collectAsStateWithLifecycle()
     val words by vm.todayWords.collectAsStateWithLifecycle()
     val quota by vm.quota.collectAsStateWithLifecycle()
-    val name by vm.documentName.collectAsStateWithLifecycle()
-    val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
     val requirements by vm.requirements.collectAsStateWithLifecycle()
-    val lockedApps by vm.lockedApps.collectAsStateWithLifecycle()
     val history by DraftLockDatabase.get(LocalContext.current).dao().observeRecentDays().collectAsStateWithLifecycle(initialValue = emptyList())
     var page by remember { mutableStateOf(Page.SPLASH) }
     val context = LocalContext.current
@@ -158,7 +155,7 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
     }
 }
 
-@Composable private fun ButtonLine(text: String, y: Int, onClick: () -> Unit) {
+@Composable fun ButtonLine(text: String, y: Int, onClick: () -> Unit) {
     Box(Modifier.offset(19.dp, y.dp).width(352.dp).height(48.dp).background(Panel).clickable { onClick() }, contentAlignment = Alignment.CenterStart) {
         Text(text, Modifier.padding(horizontal = 17.dp), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
@@ -227,34 +224,4 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
     }
 }
 
-@Composable private fun Filter(back: () -> Unit) { var prefix by remember { mutableStateOf("DND") }; Frame("LIBRARY / FILTER", "FILTER DOCS", "DND*") { Text("NAME STARTS WITH", Modifier.offset(19.dp, 6.dp), color = Muted, fontSize = 13.sp); OutlinedTextField(prefix, { prefix = it }, Modifier.offset(19.dp, 30.dp).width(352.dp), colors = fieldColors()); Text("DND", Modifier.offset(36.dp, 86.dp), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("Only Google Docs whose filename begins with DND appear in the writing library.", Modifier.offset(19.dp, 139.dp).width(352.dp), color = Muted, fontSize = 13.sp); Text("INCLUDE EDITABLE DOCS", Modifier.offset(19.dp, 186.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("Edits count toward today’s goal.", Modifier.offset(19.dp, 210.dp), color = Muted, fontSize = 13.sp); Pill("ON", 338.dp, 216.dp, true); Text("FOLDER", Modifier.offset(19.dp, 252.dp), color = Muted, fontSize = 13.sp); Text("Writing / DND", Modifier.offset(244.dp, 246.dp), color = Ink, fontSize = 16.sp); ButtonLine("APPLY FILTER", 301, back) } }
-
-@Composable private fun Edit(vm: DraftLockViewModel, text: String, words: Int) { var draft by remember(text) { mutableStateOf(text) }; Frame("GOOGLE DOCS / EDIT", "DND CHAPTER 12", "SYNCED", true) { OutlinedTextField(draft, { draft = it; vm.onTextChanged(it) }, Modifier.offset(19.dp, 15.dp).width(352.dp).height(390.dp), colors = fieldColors()); Text("$words WORDS TODAY", Modifier.offset(19.dp, 425.dp), color = Muted, fontSize = 13.sp); ButtonLine("SAVE TO GOOGLE DOCS", 470) {}; ButtonLine("BACK TO LIBRARY", 528) {} } }
-
-@Composable private fun Builder(back: () -> Unit) { Frame("RULES / BUILDER", "RULE BUILDER", "ACTIVE") { Text("WORD QUOTA", Modifier.offset(19.dp, 5.dp), color = Muted, fontSize = 13.sp); Text("1,000", Modifier.offset(19.dp, 30.dp), color = Ink, fontSize = 32.sp, fontWeight = FontWeight.Bold); Text("APP REQUIREMENTS", Modifier.offset(19.dp, 88.dp), color = Muted, fontSize = 13.sp); Text("Lichess — 30 MIN", Modifier.offset(19.dp, 113.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("Acode — 30 MIN", Modifier.offset(19.dp, 145.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); ButtonLine("SAVE RULES", 205, back) } }
-
-@Composable private fun AppRequirementScreen(back: () -> Unit) { Frame("RULES / APPS", "APP REQUIREMENT", "2 SELECTED") { Text("SELECT REQUIRED APPS", Modifier.offset(19.dp, 7.dp), color = Muted, fontSize = 13.sp); Text("Lichess", Modifier.offset(19.dp, 42.dp), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold); Pill("30 MIN", 280.dp, 37.dp); Text("Acode", Modifier.offset(19.dp, 101.dp), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold); Pill("30 MIN", 280.dp, 96.dp, true); ButtonLine("SAVE APP REQUIREMENTS", 165, back) } }
-
-@Composable private fun Control(back: () -> Unit) { Frame("ACCOUNTABILITY / CONTROL", "ACCESS CONTROL", "ACTIVE") { Text("REQUIREMENTS MET", Modifier.offset(19.dp, 10.dp), color = Muted, fontSize = 13.sp); Text("YES", Modifier.offset(19.dp, 36.dp), color = Accent, fontSize = 24.sp, fontWeight = FontWeight.Bold); Text("LOCKED APPS", Modifier.offset(19.dp, 91.dp), color = Muted, fontSize = 13.sp); Text("Lichess", Modifier.offset(19.dp, 117.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("ACCESS", Modifier.offset(260.dp, 117.dp), color = Muted, fontSize = 13.sp); ButtonLine("OPEN ACCESS DETAILS", 180, back) } }
-
-@Composable private fun Access(words: Int, quota: Int, onWrite: () -> Unit, onRules: () -> Unit) { Frame("ACCESS CONTROL", "CURRENT STATUS", "ACTIVE") { Text("TODAY", Modifier.offset(19.dp, 10.dp), color = Muted, fontSize = 13.sp); Text("$words / $quota WORDS", Modifier.offset(19.dp, 35.dp), color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Lichess", Modifier.offset(19.dp, 93.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Pill("LOCKED", 282.dp, 87.dp); Text("Acode", Modifier.offset(19.dp, 143.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Pill("CLEAR", 292.dp, 137.dp, true); ButtonLine("CONTINUE WRITING", 205, onWrite); ButtonLine("VIEW REQUIREMENTS", 263, onRules) } }
-
-@Composable private fun Usage() { Frame("USAGE", "APP TIME", "TODAY") { Text("LICHESS", Modifier.offset(19.dp, 15.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("18 / 30 MIN", Modifier.offset(250.dp, 15.dp), color = Muted, fontSize = 13.sp); Text("ACODE", Modifier.offset(19.dp, 72.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("30 / 30 MIN", Modifier.offset(250.dp, 72.dp), color = Ink, fontSize = 13.sp); Text("USAGE IS READ FROM ANDROID USAGE ACCESS WHEN AVAILABLE.", Modifier.offset(19.dp, 145.dp).width(352.dp), color = Muted, fontSize = 12.sp) } }
-
-@Composable private fun Sync() { Frame("GOOGLE DOCS", "CLOUD SYNC", "READY") { Text("ACCOUNT", Modifier.offset(19.dp, 15.dp), color = Muted, fontSize = 13.sp); Text("Google account connected", Modifier.offset(19.dp, 39.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("LAST SYNC", Modifier.offset(19.dp, 100.dp), color = Muted, fontSize = 13.sp); Text("2 MIN AGO", Modifier.offset(19.dp, 124.dp), color = Ink, fontSize = 18.sp); Text("WRITE CHANGES ARE PUSHED TO THE ACTIVE DOC.", Modifier.offset(19.dp, 180.dp).width(352.dp), color = Muted, fontSize = 13.sp) } }
-
-@Composable private fun History(history: List<DailyRecord>, onAnalytics: () -> Unit) { Frame("PROGRESS", "HISTORY", "30 DAYS", true) { if (history.isEmpty()) Text("NO RECORDED DAYS YET", Modifier.offset(19.dp, 18.dp), color = Muted, fontSize = 13.sp) else history.take(8).forEachIndexed { i, day -> Text(day.dayKey, Modifier.offset(19.dp, (18 + i * 42).dp), color = Muted, fontSize = 12.sp); Text("${day.words} WORDS", Modifier.offset(180.dp, (15 + i * 42).dp), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold) }; ButtonLine("VIEW ANALYTICS", 365, onAnalytics) } }
-
-@Composable private fun Analytics(history: List<DailyRecord>) { Frame("PROGRESS / HISTORY", "ANALYTICS", "30 DAYS") { val total = history.sumOf { it.words }; val avg = if (history.isEmpty()) 0 else total / history.size; Text("TOTAL WORDS", Modifier.offset(19.dp, 18.dp), color = Muted, fontSize = 13.sp); Text(total.toString(), Modifier.offset(19.dp, 42.dp), color = Ink, fontSize = 32.sp, fontWeight = FontWeight.Bold); Text("AVERAGE / DAY", Modifier.offset(19.dp, 100.dp), color = Muted, fontSize = 13.sp); Text(avg.toString(), Modifier.offset(19.dp, 124.dp), color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Bold) } }
-
-@Composable private fun Permissions(context: Context, onAccount: () -> Unit) { Frame("SETUP", "PERMISSIONS", "CHECK") { Text("USAGE ACCESS", Modifier.offset(19.dp, 15.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("Needed to measure required app time.", Modifier.offset(19.dp, 41.dp), color = Muted, fontSize = 13.sp); ButtonLine("OPEN USAGE ACCESS", 90) { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }; Text("NOTIFICATIONS", Modifier.offset(19.dp, 165.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("Used for accountability reminders when enabled.", Modifier.offset(19.dp, 191.dp), color = Muted, fontSize = 13.sp); ButtonLine("CONTINUE", 240, onAccount) } }
-
-@Composable private fun Account(context: Context, onSetup: () -> Unit) { Frame("GOOGLE", "ACCOUNT", "CONNECTED") { Text("Google account", Modifier.offset(19.dp, 15.dp), color = Muted, fontSize = 13.sp); Text("Connected for Docs sync", Modifier.offset(19.dp, 40.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); ButtonLine("CONNECT / CHANGE ACCOUNT", 100) { GoogleOAuthManager(context).startAuthorization() }; ButtonLine("CONTINUE SETUP", 158, onSetup) } }
-
-@Composable private fun Setup(onAccount: () -> Unit) { Frame("DRAFTLOCK", "SETUP", "READY") { Text("CONNECT GOOGLE DOCS, SELECT REQUIREMENTS, THEN START WRITING.", Modifier.offset(19.dp, 15.dp).width(352.dp), color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold); ButtonLine("GO TO ACCOUNT", 100, onAccount) } }
-
-@Composable private fun QuickAccess(words: Int, quota: Int, onWrite: () -> Unit) { Frame("QUICK ACCESS", "TODAY", "ACTIVE") { Text("$words / $quota WORDS", Modifier.offset(19.dp, 15.dp), color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold); ButtonLine("CONTINUE WRITING", 90, onWrite) } }
-
-@Composable private fun Settings(quota: Int, onAccount: () -> Unit) { Frame("DRAFTLOCK", "SETTINGS", "") { Text("DAILY QUOTA", Modifier.offset(19.dp, 15.dp), color = Muted, fontSize = 13.sp); Text("$quota WORDS", Modifier.offset(19.dp, 40.dp), color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold); ButtonLine("GOOGLE ACCOUNT", 100, onAccount) } }
-
-@Composable private fun fieldColors() = OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, focusedBorderColor = Line, unfocusedBorderColor = Line, cursorColor = Accent)
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, focusedBorderColor = Line, unfocusedBorderColor = Line, cursorColor = Accent)
