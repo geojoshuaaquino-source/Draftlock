@@ -24,8 +24,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.draftlock.app.data.AppRequirement
 import com.draftlock.app.data.DraftLockDatabase
-import com.draftlock.app.data.DailyRecord
-import com.draftlock.app.data.LockedApp
 import kotlin.math.min
 
 private val Ink = Color(0xFFF4F4F0)
@@ -225,3 +223,29 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
 }
 
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, focusedBorderColor = Line, unfocusedBorderColor = Line, cursorColor = Accent)
+
+@Composable private fun Filter(back: () -> Unit) {
+    var prefix by remember { mutableStateOf("DND") }
+    Frame("LIBRARY / FILTER", "FILTER DOCS", "DND*") {
+        Text("NAME STARTS WITH", Modifier.offset(19.dp, 6.dp), color = Muted, fontSize = 13.sp)
+        OutlinedTextField(prefix, { prefix = it }, Modifier.offset(19.dp, 30.dp).width(352.dp), colors = fieldColors())
+        Text("DND", Modifier.offset(36.dp, 86.dp), color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+        Text("Only Google Docs whose filename begins with DND appear in the writing library.", Modifier.offset(19.dp, 139.dp).width(352.dp), color = Muted, fontSize = 13.sp)
+        Text("INCLUDE EDITABLE DOCS", Modifier.offset(19.dp, 186.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("Edits count toward today’s goal.", Modifier.offset(19.dp, 210.dp), color = Muted, fontSize = 13.sp)
+        Pill("ON", 338.dp, 216.dp, true)
+        Text("FOLDER", Modifier.offset(19.dp, 252.dp), color = Muted, fontSize = 13.sp)
+        Text("Writing / DND", Modifier.offset(244.dp, 246.dp), color = Ink, fontSize = 16.sp)
+        ButtonLine("APPLY FILTER", 301, back)
+    }
+}
+
+@Composable private fun Edit(vm: DraftLockViewModel, text: String, words: Int) {
+    var draft by remember(text) { mutableStateOf(text) }
+    Frame("GOOGLE DOCS / EDIT", "DND CHAPTER 12", "SYNCED", true) {
+        OutlinedTextField(draft, { draft = it; vm.onTextChanged(it) }, Modifier.offset(19.dp, 15.dp).width(352.dp).height(390.dp), colors = fieldColors())
+        Text("$words WORDS TODAY", Modifier.offset(19.dp, 425.dp), color = Muted, fontSize = 13.sp)
+        ButtonLine("SAVE TO GOOGLE DOCS", 470) {}
+        ButtonLine("BACK TO LIBRARY", 528) {}
+    }
+}
