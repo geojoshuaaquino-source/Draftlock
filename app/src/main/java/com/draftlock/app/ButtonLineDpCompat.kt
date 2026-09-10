@@ -14,8 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.dp
-import androidx.compose.ui.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 private val CompatInk = Color(0xFFF4F4F0)
 private val CompatPanel = Color(0xFF151515)
