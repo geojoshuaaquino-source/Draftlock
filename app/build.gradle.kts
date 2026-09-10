@@ -4,7 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.kapt")
 }
 
 val localProperties = Properties().apply {
@@ -26,7 +26,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
-        manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.$redirectPrefix"
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.google.android.gms.auth.api.credentials"
     }
 
     buildFeatures {
@@ -59,7 +59,7 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.room:room-runtime:2.8.5")
     implementation("androidx.room:room-ktx:2.8.5")
-    ksp("androidx.room:room-compiler:2.8.5")
+    kapt("androidx.room:room-compiler:2.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("net.openid:appauth:0.11.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
