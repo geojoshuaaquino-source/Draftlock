@@ -26,7 +26,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
-        manifestPlaceholders["appAuthRedirectScheme"] = "com.google.android.gms.auth.api.credentials"
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.$redirectPrefix"
     }
 
     buildFeatures {
