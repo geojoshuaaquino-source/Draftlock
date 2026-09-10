@@ -29,6 +29,9 @@ interface DraftLockDao {
     @Query("SELECT * FROM daily_records WHERE dayKey = :dayKey LIMIT 1")
     suspend fun getDay(dayKey: String): DailyRecord?
 
+    @Query("SELECT * FROM daily_records ORDER BY dayKey DESC LIMIT 30")
+    fun observeRecentDays(): Flow<List<DailyRecord>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDay(record: DailyRecord)
 }
