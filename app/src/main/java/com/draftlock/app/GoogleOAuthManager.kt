@@ -34,6 +34,7 @@ class GoogleOAuthManager(private val context: Context) {
             val completionIntent = TaskStackBuilder.create(context)
                 .addNextIntentWithParentStack(Intent(context, MainActivity::class.java))
                 .getPendingIntent(70, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                ?: error("Unable to create OAuth completion PendingIntent")
             authService.performAuthorizationRequest(request, completionIntent)
         }
     }
@@ -50,7 +51,7 @@ class GoogleOAuthManager(private val context: Context) {
             if (tokenResponse == null) {
                 onComplete(false, tokenError?.errorDescription ?: "Google token exchange failed")
             } else {
-                authState.update(response, tokenResponse, tokenError)
+                authState.update(tokenResponse, tokenError)
                 store.save(authState.jsonSerializeString())
                 onComplete(true, "Google account connected")
             }
