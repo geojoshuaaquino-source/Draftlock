@@ -56,7 +56,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.7.2")
     implementation("net.openid:appauth:0.11.1")
     implementation("com.google.api-client:google-api-client-android:2.8.0")
-    implementation("com.google.apis:google-api-services-drive:v3-rev20250617-2.0.0")
-    implementation("com.google.apis:google-api-services-docs:v1-rev20250407-2.0.0")
+    implementation("com.google.apis:google-api-services-drive:v3-rev20260901-2.0.0")
+    implementation("com.google.apis:google-api-services-docs:v1-rev20260712-2.0.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
