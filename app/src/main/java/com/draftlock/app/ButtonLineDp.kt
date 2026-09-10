@@ -11,9 +11,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+private val ButtonInk = Color(0xFFF4F4F0)
+private val ButtonPanel = Color(0xFF151515)
 
 @Composable
 fun ButtonLine(text: String, y: Dp, onClick: () -> Unit) {
@@ -22,16 +27,16 @@ fun ButtonLine(text: String, y: Dp, onClick: () -> Unit) {
             .offset(19.dp, y)
             .width(352.dp)
             .height(48.dp)
-            .background(Panel)
+            .background(ButtonPanel)
             .clickable { onClick() },
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
             text,
             Modifier.padding(horizontal = 17.dp),
-            color = Ink,
+            color = ButtonInk,
             fontSize = 13.sp,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            fontWeight = FontWeight.Bold
         )
     }
 }
