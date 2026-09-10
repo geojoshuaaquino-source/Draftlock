@@ -1,9 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+val googleClientId = localProperties.getProperty("GOOGLE_CLIENT_ID")
+    ?: "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
+val redirectPrefix = googleClientId.substringBefore(".apps.googleusercontent.com")
 
 android {
     namespace = "com.draftlock.app"
@@ -15,9 +25,14 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.$redirectPrefix"
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     kotlinOptions { jvmTarget = "17" }
 
@@ -39,14 +54,9 @@ dependencies {
     implementation("androidx.room:room-runtime:2.7.2")
     implementation("androidx.room:room-ktx:2.7.2")
     ksp("androidx.room:room-compiler:2.7.2")
-
-    // Browser-based OAuth 2.0 / PKCE for Google authorization.
     implementation("net.openid:appauth:0.11.1")
-
-    // Google Workspace REST APIs.
     implementation("com.google.api-client:google-api-client-android:2.8.0")
     implementation("com.google.apis:google-api-services-drive:v3-rev20250617-2.0.0")
     implementation("com.google.apis:google-api-services-docs:v1-rev20250407-2.0.0")
-
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
