@@ -127,8 +127,8 @@ private fun DraftLockPrototype(vm: DraftLockViewModel = viewModel()) {
     }
 }
 
-@Composable private fun AppRow(title: String, detail: String, status: String, y: Int, clear: Boolean) {
-    Box(Modifier.offset(32.dp, y.dp).width(322.dp).height(46.dp)) {
+@Composable private fun AppRow(title: String, detail: String, status: String, y: Dp, clear: Boolean) {
+    Box(Modifier.offset(32.dp, y).width(322.dp).height(46.dp)) {
         Box(Modifier.offset(0.dp, 0.dp).width(46.dp).height(46.dp).background(Panel))
         Text(title, Modifier.offset(58.dp, 1.dp), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Text(detail, Modifier.offset(58.dp, 29.dp), color = Muted, fontSize = 13.sp)
@@ -154,13 +154,8 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
     }
 }
 
-@Composable private fun ButtonLine(text: String, y: Any, onClick: () -> Unit) {
-    val yDp = when (y) {
-        is Dp -> y
-        is Int -> y.dp
-        else -> error("ButtonLine y must be Int or Dp")
-    }
-    Box(Modifier.offset(19.dp, yDp).width(352.dp).height(48.dp).background(Panel).clickable { onClick() }, contentAlignment = Alignment.CenterStart) {
+@Composable private fun ButtonLine(text: String, y: Int, onClick: () -> Unit) {
+    Box(Modifier.offset(19.dp, y.dp).width(352.dp).height(48.dp).background(Panel).clickable { onClick() }, contentAlignment = Alignment.CenterStart) {
         Text(text, Modifier.padding(horizontal = 17.dp), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -211,7 +206,7 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
         DocRow("NOVEL NOTES", "Not tracked", "OPEN", 294) {}
         ButtonLine("CLOUD SYNC", 365, onSync)
         ButtonLine("CONNECT GOOGLE ACCOUNT", 423) { GoogleOAuthManager(context).startAuthorization() }
-        TextButton(onClick = onFilter, Modifier.offset(19.dp, 481.dp)) { Text("FILTER", color = Accent) }
+        TextButton(onClick = onFilter, modifier = Modifier.offset(19.dp, 481.dp)) { Text("FILTER", color = Accent) }
     }
 }
 
@@ -251,7 +246,5 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
 @Composable private fun QuickAccess(words: Int, quota: Int, onWrite: () -> Unit) { Frame("QUICK ACCESS", "TODAY", "ACTIVE") { Text("$words / $quota WORDS", Modifier.offset(19.dp, 15.dp), color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold); ButtonLine("CONTINUE WRITING", 90, onWrite) } }
 
 @Composable private fun Settings(quota: Int, onAccount: () -> Unit) { Frame("DRAFTLOCK", "SETTINGS", "") { Text("DAILY QUOTA", Modifier.offset(19.dp, 15.dp), color = Muted, fontSize = 13.sp); Text("$quota WORDS", Modifier.offset(19.dp, 40.dp), color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold); ButtonLine("GOOGLE ACCOUNT", 100, onAccount) } }
-
-@Composable private fun TextButton(onClick: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) { androidx.compose.material3.TextButton(onClick = onClick, modifier = modifier, content = content) }
 
 @Composable private fun fieldColors() = OutlinedTextFieldDefaults.colors(focusedTextColor = Ink, unfocusedTextColor = Ink, focusedBorderColor = Line, unfocusedBorderColor = Line, cursorColor = Accent)
