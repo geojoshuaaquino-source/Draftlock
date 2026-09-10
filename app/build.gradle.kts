@@ -26,12 +26,17 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
-        manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.$redirectPrefix"
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.google.android.apps.$redirectPrefix"
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions { jvmTarget = "17" }
