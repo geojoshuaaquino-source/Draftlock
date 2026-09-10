@@ -9,8 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,7 +32,6 @@ private val Muted = Color(0xFF8B8B86)
 private val Panel = Color(0xFF151515)
 private val Line = Color(0xFF30302D)
 private val Accent = Color(0xFFB7FF4A)
-private val Danger = Color(0xFFFF6B6B)
 private val Bg = Color(0xFF080808)
 
 class PrototypeActivity : ComponentActivity() {
@@ -133,7 +131,6 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
         StatusPair("CONTROL", "ACTIVE", 200.dp, 345.67.dp)
         Text("SESSION 07", Modifier.offset(19.dp, 23.dp), color = Muted, fontSize = 13.sp)
         BottomNav()
-        Box(Modifier.offset(0.dp, 0.dp).fillMaxSize().clickable { onWrite() }) { }
     }
 }
 
@@ -227,4 +224,4 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
 
 @Composable private fun Setting(a: String, b: String, v: String, y: Int) { Text(a, Modifier.offset(32.dp, y.dp), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text(b, Modifier.offset(32.dp, (y + 28).dp), color = Muted, fontSize = 13.sp); Pill(v, 286.dp, (y + 5).dp, v == "AVAILABLE") }
 
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Panel, focusedContainerColor = Panel, unfocusedBorderColor = Line, focusedBorderColor = Accent, unfocusedTextColor = Ink, focusedTextColor = Ink, unfocusedLabelColor = Muted, focusedLabelColor = Accent)
+@Composable private fun fieldColors() = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Panel, focusedContainerColor = Panel, unfocusedBorderColor = Line, focusedBorderColor = Accent, unfocusedTextColor = Ink, focusedTextColor = Ink, unfocusedLabelColor = Muted, focusedLabelColor = Accent)
