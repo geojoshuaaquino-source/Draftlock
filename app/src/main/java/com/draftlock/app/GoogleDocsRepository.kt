@@ -1,74 +1,155 @@
 package com.draftlock.app
 
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.http.HttpCredentialsAdapter
-import com.google.api.client.http.javanet.NetHttpTransport
-import com.google.api.client.json.gson.GsonFactory
-import com.google.api.services.docs.v1.Docs
-import com.google.api.services.docs.v1.model.BatchUpdateDocumentRequest
-import com.google.api.services.docs.v1.model.DeleteContentRangeRequest
-import com.google.api.services.docs.v1.model.EndOfSegmentLocation
-import com.google.api.services.docs.v1.model.InsertTextRequest
-import com.google.api.services.docs.v1.model.Location
-import com.google.api.services.docs.v1.model.Request
-import com.google.api.services.docs.v1.model.Range
-import com.google.api.services.docs.v1.model.Document
-import com.google.api.services.docs.v1.model.StructuralElement
-import com.google.api.services.drive.Drive
-import com.google.api.services.drive.model.File
-import com.google.api.client.auth.oauth2.Credential
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
+/**
+ * Google Drive + Docs integration using the official REST APIs directly.
+ * The access token is supplied by the OAuth layer; DraftLock never stores a password.
+ */
 class GoogleDocsRepository {
-    private val transport = NetHttpTransport()
-    private val json = GsonFactory.getDefaultInstance()
-
-    private fun credential(accessToken: String): Credential = com.google.api.client.auth.oauth2.Credential()
-        .setAccessToken(accessToken)
-
-    private fun docs(accessToken: String): Docs = Docs.Builder(transport, json, HttpCredentialsAdapter(credential(accessToken)))
-        .setApplicationName("DraftLock")
-        .build()
-
-    private fun drive(accessToken: String): Drive = Drive.Builder(transport, json, HttpCredentialsAdapter(credential(accessToken)))
-        .setApplicationName("DraftLock")
-        .build()
+    private companion object {
+        const val DRIVE_BASE = "https://www.googleapis.com/drive/v3"
+        const val DOCS_BASE = "https://docs.googleapis.com/v1"
+        const val DOC_MIME = "application/vnd.google-apps.document"
+    }
 
     fun createDocument(accessToken: String, name: String, folderId: String? = null): String {
-        val doc = docs(accessToken).documents().create(Document().setTitle(name)).execute()
+        val body = JSONObject()
+            .put("name", name)
+            .put("mimeType", DOC_MIME)
+
         if (!folderId.isNullOrBlank()) {
-            drive(accessToken).files().update(doc.documentId, null)
-                .setAddParents(folderId)
-                .setFields("id,parents")
-                .execute()
+            body.put("parents", JSONArray().put(folderId))
         }
-        return doc.documentId
+
+        val json = request(
+            accessToken = accessToken,
+            method = "POST",
+            url = "$DRIVE_BASE/files?fields=id,name,parents",
+            body = body.toString()
+        )
+        return JSONObject(json).getString("id")
     }
 
     fun replaceDocument(accessToken: String, documentId: String, text: String) {
-        val service = docs(accessToken)
-        val document = service.documents().get(documentId).execute()
-        val endIndex = findBodyEndIndex(document)
-        val requests = mutableListOf<Request>()
+        val document = JSONObject(
+            request(
+                accessToken = accessToken,
+                method = "GET",
+                url = "$DOCS_BASE/documents/$documentId"
+            )
+        )
+        val content = document.optJSONObject("body")?.optJSONArray("content") ?: JSONArray()
+        var endIndex = 2
+        for (i in 0 until content.length()) {
+            endIndex = maxOf(endIndex, content.optJSONObject(i)?.optInt("endIndex", 2) ?: 2)
+        }
+
+        val requests = JSONArray()
         if (endIndex > 2) {
-            requests += Request().setDeleteContentRange(
-                DeleteContentRangeRequest().setRange(Range().setStartIndex(1).setEndIndex(endIndex - 1))
+            requests.put(
+                JSONObject().put("deleteContentRange", JSONObject().put("range", JSONObject()
+                    .put("startIndex", 1)
+                    .put("endIndex", endIndex - 1)))
             )
         }
         if (text.isNotEmpty()) {
-            requests += Request().setInsertText(
-                InsertTextRequest().setEndOfSegmentLocation(EndOfSegmentLocation()).setText(text)
+            requests.put(
+                JSONObject().put("insertText", JSONObject()
+                    .put("endOfSegmentLocation", JSONObject())
+                    .put("text", text))
             )
         }
-        if (requests.isNotEmpty()) service.documents().batchUpdate(documentId, BatchUpdateDocumentRequest().setRequests(requests)).execute()
+
+        if (requests.length() > 0) {
+            request(
+                accessToken = accessToken,
+                method = "POST",
+                url = "$DOCS_BASE/documents/$documentId:batchUpdate",
+                body = JSONObject().put("requests", requests).toString()
+            )
+        }
     }
 
-    fun findFiles(accessToken: String, namePrefix: String): List<File> =
-        drive(accessToken).files().list()
-            .setQ("trashed = false and mimeType = 'application/vnd.google-apps.document'")
-            .setSpaces("drive")
-            .setFields("files(id,name,modifiedTime,size,parents)")
-            .execute().files.filter { it.name?.startsWith(namePrefix, ignoreCase = true) == true }
+    fun findFiles(accessToken: String, namePrefix: String): List<RemoteFile> {
+        val escapedName = namePrefix.replace("'", "\\'")
+        val query = "trashed = false and mimeType = '$DOC_MIME' and name contains '$escapedName'"
+        val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
+        val fields = URLEncoder.encode("files(id,name,modifiedTime,size,parents)", StandardCharsets.UTF_8.toString())
+        val json = JSONObject(request(
+            accessToken = accessToken,
+            method = "GET",
+            url = "$DRIVE_BASE/files?q=$encodedQuery&spaces=drive&fields=$fields&pageSize=100"
+        ))
+        val files = json.optJSONArray("files") ?: JSONArray()
+        return buildList {
+            for (i in 0 until files.length()) {
+                val item = files.optJSONObject(i) ?: continue
+                val name = item.optString("name")
+                if (name.startsWith(namePrefix, ignoreCase = true)) {
+                    val parents = item.optJSONArray("parents") ?: JSONArray()
+                    add(RemoteFile(
+                        id = item.optString("id"),
+                        name = name,
+                        modifiedTime = item.optString("modifiedTime"),
+                        size = item.optLong("size", 0L),
+                        parents = buildList {
+                            for (p in 0 until parents.length()) add(parents.optString(p))
+                        }
+                    ))
+                }
+            }
+        }
+    }
 
-    private fun findBodyEndIndex(document: Document): Int =
-        document.body?.content?.mapNotNull(StructuralElement::getEndIndex)?.maxOrNull() ?: 2
+    private fun request(
+        accessToken: String,
+        method: String,
+        url: String,
+        body: String? = null
+    ): String {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 20_000
+            readTimeout = 30_000
+            setRequestProperty("Authorization", "Bearer $accessToken")
+            setRequestProperty("Accept", "application/json")
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+        }
+
+        try {
+            if (body != null) {
+                connection.outputStream.use { it.write(body.toByteArray(StandardCharsets.UTF_8)) }
+            }
+            val status = connection.responseCode
+            val input = if (status in 200..299) connection.inputStream else connection.errorStream
+            val response = input?.use { stream ->
+                BufferedReader(InputStreamReader(stream, StandardCharsets.UTF_8)).use { it.readText() }
+            }.orEmpty()
+            if (status !in 200..299) {
+                throw IllegalStateException("Google API request failed ($status): $response")
+            }
+            return response
+        } finally {
+            connection.disconnect()
+        }
+    }
 }
+
+data class RemoteFile(
+    val id: String,
+    val name: String,
+    val modifiedTime: String,
+    val size: Long,
+    val parents: List<String>
+)
