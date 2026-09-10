@@ -1,14 +1,11 @@
 package com.draftlock.app.data
 
-import android.content.Context
-import androidx.room.Database
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
-import androidx.room.Room
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "app_requirements")
@@ -60,21 +57,4 @@ interface DraftLockDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDay(record: DailyRecord)
-}
-
-@Database(entities = [AppRequirement::class, LockedApp::class, DailyRecord::class], version = 1, exportSchema = false)
-abstract class DraftLockDatabase : RoomDatabase() {
-    abstract fun dao(): DraftLockDao
-
-    companion object {
-        @Volatile private var INSTANCE: DraftLockDatabase? = null
-        fun get(context: Context): DraftLockDatabase =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    DraftLockDatabase::class.java,
-                    "draftlock.db"
-                ).build().also { INSTANCE = it }
-            }
-    }
 }
