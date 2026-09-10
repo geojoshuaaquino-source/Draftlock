@@ -35,6 +35,8 @@ private val Line = Color(0xFF30302D)
 private val Accent = Color(0xFFB7FF4A)
 private val Bg = Color(0xFF080808)
 
+private val LocalPageNavigation = staticCompositionLocalOf<(Page) -> Unit> { {} }
+
 class PrototypeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,30 +64,32 @@ private fun DraftLockPrototype(vm: DraftLockViewModel = viewModel()) {
     var page by remember { mutableStateOf(Page.SPLASH) }
     val context = LocalContext.current
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.TopCenter) {
-        val scale = min(maxWidth.value / 390f, maxHeight.value / 844f)
-        Box(Modifier.width(390.dp).height(844.dp).graphicsLayer(scaleX = scale, scaleY = scale)) {
-            when (page) {
-                Page.SPLASH -> Splash { page = Page.HOME }
-                Page.HOME -> Home(words, quota, { page = Page.WRITE })
-                Page.WRITE -> Write(vm, text, words)
-                Page.RULES -> Rules(vm, requirements, { page = Page.APP_REQUIREMENT }, { page = Page.BUILDER }, { page = Page.CONTROL })
-                Page.DOCS -> Docs(context, { page = Page.FILTER }, { page = Page.EDIT }, { page = Page.SYNC })
-                Page.FILTER -> Filter { page = Page.DOCS }
-                Page.EDIT -> Edit(vm, text, words)
-                Page.BUILDER -> Builder { page = Page.RULES }
-                Page.APP_REQUIREMENT -> AppRequirementScreen { page = Page.RULES }
-                Page.CONTROL -> Control { page = Page.ACCESS }
-                Page.ACCESS -> Access(words, quota, { page = Page.WRITE }, { page = Page.RULES })
-                Page.USAGE -> Usage()
-                Page.SYNC -> Sync()
-                Page.HISTORY -> History(history, { page = Page.ANALYTICS })
-                Page.ANALYTICS -> Analytics(history)
-                Page.PERMISSIONS -> Permissions(context, { page = Page.ACCOUNT })
-                Page.ACCOUNT -> Account(context, { page = Page.SETUP })
-                Page.SETUP -> Setup { page = Page.ACCOUNT }
-                Page.QUICK_ACCESS -> QuickAccess(words, quota, { page = Page.WRITE })
-                Page.SETTINGS -> Settings(quota, { page = Page.ACCOUNT })
+    CompositionLocalProvider(LocalPageNavigation provides { page = it }) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.TopCenter) {
+            val scale = min(maxWidth.value / 390f, maxHeight.value / 844f)
+            Box(Modifier.width(390.dp).height(844.dp).graphicsLayer(scaleX = scale, scaleY = scale)) {
+                when (page) {
+                    Page.SPLASH -> Splash { page = Page.HOME }
+                    Page.HOME -> Home(words, quota, { page = Page.WRITE })
+                    Page.WRITE -> Write(vm, text, words)
+                    Page.RULES -> Rules(vm, requirements, { page = Page.APP_REQUIREMENT }, { page = Page.BUILDER }, { page = Page.CONTROL })
+                    Page.DOCS -> Docs(context, { page = Page.FILTER }, { page = Page.EDIT }, { page = Page.SYNC })
+                    Page.FILTER -> Filter { page = Page.DOCS }
+                    Page.EDIT -> Edit(vm, text, words)
+                    Page.BUILDER -> Builder { page = Page.RULES }
+                    Page.APP_REQUIREMENT -> AppRequirementScreen { page = Page.RULES }
+                    Page.CONTROL -> Control { page = Page.ACCESS }
+                    Page.ACCESS -> Access(words, quota, { page = Page.WRITE }, { page = Page.RULES })
+                    Page.USAGE -> Usage()
+                    Page.SYNC -> Sync()
+                    Page.HISTORY -> History(history, { page = Page.ANALYTICS })
+                    Page.ANALYTICS -> Analytics(history)
+                    Page.PERMISSIONS -> Permissions(context, { page = Page.ACCOUNT })
+                    Page.ACCOUNT -> Account(context, { page = Page.SETUP })
+                    Page.SETUP -> Setup { page = Page.ACCOUNT }
+                    Page.QUICK_ACCESS -> QuickAccess(words, quota, { page = Page.WRITE })
+                    Page.SETTINGS -> Settings(quota, { page = Page.ACCOUNT })
+                }
             }
         }
     }
@@ -161,9 +165,15 @@ private fun badgeWidth(s: String) = (s.length * 7 + 22).dp
 }
 
 @Composable private fun BottomNav() {
-    val items = listOf("01" to "HOME", "02" to "WRITE", "03" to "RULES", "04" to "DOCS")
+    val navigate = LocalPageNavigation.current
+    val items = listOf(Page.HOME to ("01" to "HOME"), Page.WRITE to ("02" to "WRITE"), Page.RULES to ("03" to "RULES"), Page.DOCS to ("04" to "DOCS"))
     Row(Modifier.offset(19.dp, 778.dp).width(352.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        items.forEach { (n, t) -> Column(Modifier.width(44.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(n, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text(t, color = Muted, fontSize = 12.sp) } }
+        items.forEach { (page, labels) ->
+            Column(Modifier.width(44.dp).clickable { navigate(page) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(labels.first, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(labels.second, color = Muted, fontSize = 12.sp)
+            }
+        }
     }
 }
 
