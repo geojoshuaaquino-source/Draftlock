@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.draftLockDataStore by preferencesDataStore("draftlock_settings")
@@ -46,10 +47,44 @@ class SettingsStore(private val context: Context) {
     suspend fun setLogic(value: String) = context.draftLockDataStore.edit { it[Keys.logic] = value }
     suspend fun setDocumentText(value: String) = context.draftLockDataStore.edit { it[Keys.documentText] = value }
     suspend fun setDocumentName(value: String) = context.draftLockDataStore.edit { it[Keys.documentName] = value }
-    suspend fun setOverride(until: Long) = context.draftLockDataStore.edit { it[Keys.overrideUntil] = until; it[Keys.overrideUsed] = true }
+
+    suspend fun setOverride(until: Long) {
+        context.draftLockDataStore.edit {
+            it[Keys.overrideUntil] = until
+            it[Keys.overrideUsed] = true
+        }
+        recordCurrentDay()
+    }
+
     suspend fun clearOverride() = context.draftLockDataStore.edit { it[Keys.overrideUntil] = 0L }
     suspend fun setGoogleFolderId(value: String) = context.draftLockDataStore.edit { it[Keys.googleFolderId] = value }
     suspend fun setGoogleDocumentId(value: String) = context.draftLockDataStore.edit { it[Keys.googleDocumentId] = value }
     suspend fun setGoogleAutoSave(value: Boolean) = context.draftLockDataStore.edit { it[Keys.googleAutoSave] = value }
-    suspend fun setTodayWords(value: Int, key: String) = context.draftLockDataStore.edit { it[Keys.todayWords] = value.coerceAtLeast(0); it[Keys.todayKey] = key }
+
+    suspend fun setTodayWords(value: Int, key: String) {
+        context.draftLockDataStore.edit {
+            val previousKey = it[Keys.todayKey] ?: ""
+            if (previousKey != key) {
+                it[Keys.overrideUsed] = false
+                it[Keys.overrideUntil] = 0L
+            }
+            it[Keys.todayWords] = value.coerceAtLeast(0)
+            it[Keys.todayKey] = key
+        }
+        recordCurrentDay()
+    }
+
+    private suspend fun recordCurrentDay() {
+        val prefs = context.draftLockDataStore.data.first()
+        val dayKey = prefs[Keys.todayKey] ?: return
+        if (dayKey.isBlank()) return
+        DraftLockDatabase.get(context).dao().upsertDay(
+            DailyRecord(
+                dayKey = dayKey,
+                words = prefs[Keys.todayWords] ?: 0,
+                quota = prefs[Keys.quota] ?: 1000,
+                overrideUsed = prefs[Keys.overrideUsed] ?: false
+            )
+        )
+    }
 }
