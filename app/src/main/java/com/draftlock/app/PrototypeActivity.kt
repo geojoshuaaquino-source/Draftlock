@@ -50,12 +50,26 @@ private enum class Page { SPLASH, HOME, WRITE, RULES, DOCS, FILTER, EDIT, BUILDE
             val scale = min(maxWidth.value / 390f, maxHeight.value / 844f)
             Box(Modifier.width(390.dp).height(844.dp).graphicsLayer(scaleX = scale, scaleY = scale)) {
                 when (page) {
-                    Page.SPLASH -> Splash { page = Page.HOME }; Page.HOME -> Home(words, quota) { page = Page.WRITE }; Page.WRITE -> Write(vm, text, words)
-                    Page.RULES -> Rules(vm, requirements, { page = Page.APP_REQUIREMENT }, { page = Page.BUILDER }, { page = Page.CONTROL }); Page.DOCS -> Docs(context, { page = Page.FILTER }, { page = Page.EDIT }, { page = Page.SYNC })
-                    Page.FILTER -> Filter { page = Page.DOCS }; Page.EDIT -> Edit(vm, text, words); Page.BUILDER -> Builder { page = Page.RULES }; Page.APP_REQUIREMENT -> AppRequirementScreen { page = Page.RULES }
-                    Page.CONTROL -> Control { page = Page.ACCESS }; Page.ACCESS -> Access(words, quota, { page = Page.WRITE }, { page = Page.RULES }); Page.USAGE -> Usage(); Page.SYNC -> Sync()
-                    Page.HISTORY -> History(history) { page = Page.ANALYTICS }; Page.ANALYTICS -> Analytics(history); Page.PERMISSIONS -> Permissions(context) { page = Page.ACCOUNT }
-                    Page.ACCOUNT -> Account(context) { page = Page.SETUP }; Page.SETUP -> Setup { page = Page.ACCOUNT }; Page.QUICK_ACCESS -> QuickAccess(words, quota) { page = Page.WRITE }; Page.SETTINGS -> Settings(quota) { page = Page.ACCOUNT }
+                    Page.SPLASH -> Splash { page = Page.HOME }
+                    Page.HOME -> Home(words, quota) { page = Page.WRITE }
+                    Page.WRITE -> Write(vm, text, words)
+                    Page.RULES -> Rules(vm, requirements, { page = Page.APP_REQUIREMENT }, { page = Page.BUILDER }, { page = Page.CONTROL })
+                    Page.DOCS -> Docs(context, { page = Page.FILTER }, { page = Page.EDIT }, { page = Page.SYNC })
+                    Page.FILTER -> Filter { page = Page.DOCS }
+                    Page.EDIT -> Edit(vm, text, words)
+                    Page.BUILDER -> Builder { page = Page.RULES }
+                    Page.APP_REQUIREMENT -> AppRequirementScreen { page = Page.RULES }
+                    Page.CONTROL -> Control { page = Page.ACCESS }
+                    Page.ACCESS -> Access(words, quota, { page = Page.WRITE }, { page = Page.RULES })
+                    Page.USAGE -> Usage()
+                    Page.SYNC -> Sync()
+                    Page.HISTORY -> History(history) { page = Page.ANALYTICS }
+                    Page.ANALYTICS -> Analytics(history)
+                    Page.PERMISSIONS -> Permissions(context) { page = Page.ACCOUNT }
+                    Page.ACCOUNT -> Account(context) { page = Page.SETUP }
+                    Page.SETUP -> Setup { page = Page.ACCOUNT }
+                    Page.QUICK_ACCESS -> QuickAccess(words, quota) { page = Page.WRITE }
+                    Page.SETTINGS -> Settings(quota) { page = Page.ACCOUNT }
                 }
             }
         }
@@ -77,7 +91,7 @@ private enum class Page { SPLASH, HOME, WRITE, RULES, DOCS, FILTER, EDIT, BUILDE
 private fun badgeWidth(s:String)=(s.length*7+22).dp
 @Composable private fun Pill(text:String,x:Dp,y:Dp,accent:Boolean=false){Box(Modifier.offset(x,y).height(31.dp).width(badgeWidth(text)).background(if(accent)Accent else Panel),contentAlignment=Alignment.Center){Text(text,color=if(accent)Color.Black else Ink,fontSize=11.sp,fontWeight=FontWeight.Bold)}}
 @Composable fun ButtonLine(text:String,y:Int,onClick:()->Unit){Box(Modifier.offset(19.dp,y.dp).width(352.dp).height(48.dp).background(Panel).clickable{onClick()},contentAlignment=Alignment.CenterStart){Text(text,Modifier.padding(horizontal=17.dp),color=Ink,fontSize=13.sp,fontWeight=FontWeight.Bold)}}
-@Composable private fun BottomNav(){val navigate=LocalPageNavigation.current;Row(Modifier.offset(19.dp,778.dp).width(352.dp),horizontalArrangement=Arrangement.SpaceBetween){listOf(Page.HOME to("01" to"HOME"),Page.WRITE to("02" to"WRITE"),Page.RULES to("03" to"RULES"),Page.DOCS to("04" to"DOCS")).forEach{(page,l)->Column(Modifier.width(44.dp).clickable{navigate(page)},horizontalAlignment=Alignment.CenterHorizontally){Text(l.first,color=Ink,fontSize=16.sp,fontWeight=FontWeight.Bold);Text(l.second,color=Muted,fontSize=12.sp)}}}}
+@Composable private fun BottomNav(){val navigate=LocalPageNavigation.current;Row(Modifier.offset(19.dp,778.dp).width(352.dp),horizontalArrangement=Arrangement.SpaceBetween){listOf(Page.HOME to ("01" to "HOME"),Page.WRITE to ("02" to "WRITE"),Page.RULES to ("03" to "RULES"),Page.DOCS to ("04" to "DOCS")).forEach{(page,l)->Column(Modifier.width(44.dp).clickable{navigate(page)},horizontalAlignment=Alignment.CenterHorizontally){Text(l.first,color=Ink,fontSize=16.sp,fontWeight=FontWeight.Bold);Text(l.second,color=Muted,fontSize=12.sp)}}}}
 
 @Composable private fun Write(vm:DraftLockViewModel,text:String,words:Int){var draft by remember(text){mutableStateOf(text)};Frame("WRITE / ACTIVE DOCUMENT","DND CHAPTER 12","SAVED",true){Text("TOTAL 3,842 WORDS",Modifier.offset(19.dp,5.dp),color=Muted,fontSize=13.sp);Text("TODAY +$words",Modifier.offset(315.dp,5.dp),color=Ink,fontSize=13.sp);OutlinedTextField(draft,{draft=it;vm.onTextChanged(it)},Modifier.offset(36.dp,46.dp).width(318.dp).height(216.dp),colors=fieldColors(),placeholder={Text("The corridor narrowed as the lights began to flicker.\n\nEgo stopped, listening for the sound beneath the ventilation hum.",color=Ink,fontSize=15.sp)});Text("CURSOR ACTIVE • EDITS COUNT TOWARD TODAY",Modifier.offset(36.dp,287.dp),color=Muted,fontSize=13.sp);Text("AUTOSAVED 8 SEC AGO",Modifier.offset(19.dp,480.dp),color=Muted,fontSize=13.sp);Pill("DOCS SYNC",299.dp,471.dp,true)}}
 
@@ -85,7 +99,7 @@ private fun badgeWidth(s:String)=(s.length*7+22).dp
 
 @Composable private fun Docs(context:Context,onFilter:()->Unit,onEdit:()->Unit,onSync:()->Unit){Frame("GOOGLE DOCS","LIBRARY","SYNCED",true){Box(Modifier.offset(19.dp,12.dp).width(352.dp).height(48.dp).background(Panel)){Text("SEARCH DOCUMENTS",Modifier.padding(17.dp),color=Muted,fontSize=13.sp)};Pill("NAME: DND*",294.dp,72.dp);DocRow("DND CHAPTER 12","3,842 words • edited 2m ago","EDIT",130,onEdit);DocRow("DND CHAPTER 11","4,106 words • yesterday","EDIT",212){};DocRow("NOVEL NOTES","Not tracked","OPEN",294){};ButtonLine("CLOUD SYNC",365,onSync);ButtonLine("CONNECT GOOGLE ACCOUNT",423){GoogleOAuthManager(context).startAuthorization()};TextButton(onClick=onFilter,modifier=Modifier.offset(19.dp,481.dp)){Text("FILTER",color=Accent)}}}
 @Composable private fun DocRow(title:String,detail:String,status:String,y:Int,onClick:()->Unit){Row(Modifier.offset(32.dp,y.dp).width(338.dp).height(64.dp).clickable{onClick()},verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(title,color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold);Text(detail,color=Muted,fontSize=13.sp)};Pill(status,314.dp,(y+12).dp,status=="OPEN")}}
-private fun fieldColors()=OutlinedTextFieldDefaults.colors(focusedTextColor=Ink,unfocusedTextColor=Ink,focusedBorderColor=Line,unfocusedBorderColor=Line,cursorColor=Accent)
+@Composable private fun fieldColors()=OutlinedTextFieldDefaults.colors(focusedTextColor=Ink,unfocusedTextColor=Ink,focusedBorderColor=Line,unfocusedBorderColor=Line,cursorColor=Accent)
 @Composable private fun Filter(back:()->Unit){var prefix by remember{mutableStateOf("DND")};Frame("LIBRARY / FILTER","FILTER DOCS","DND*"){Text("NAME STARTS WITH",Modifier.offset(19.dp,6.dp),color=Muted,fontSize=13.sp);OutlinedTextField(prefix,{prefix=it},Modifier.offset(19.dp,30.dp).width(352.dp),colors=fieldColors());Text("DND",Modifier.offset(36.dp,86.dp),color=Ink,fontSize=19.sp,fontWeight=FontWeight.Bold);Text("Only Google Docs whose filename begins with DND appear in the writing library.",Modifier.offset(19.dp,139.dp).width(352.dp),color=Muted,fontSize=13.sp);Text("INCLUDE EDITABLE DOCS",Modifier.offset(19.dp,186.dp),color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold);Text("Edits count toward today’s goal.",Modifier.offset(19.dp,210.dp),color=Muted,fontSize=13.sp);Pill("ON",338.dp,216.dp,true);Text("FOLDER",Modifier.offset(19.dp,252.dp),color=Muted,fontSize=13.sp);Text("Writing / DND",Modifier.offset(244.dp,246.dp),color=Ink,fontSize=16.sp);ButtonLine("APPLY FILTER",301,back)}}
 @Composable private fun Edit(vm:DraftLockViewModel,text:String,words:Int){var draft by remember(text){mutableStateOf(text)};Frame("GOOGLE DOCS / EDIT","DND CHAPTER 12","SYNCED",true){OutlinedTextField(draft,{draft=it;vm.onTextChanged(it)},Modifier.offset(19.dp,15.dp).width(352.dp).height(390.dp),colors=fieldColors());Text("$words WORDS TODAY",Modifier.offset(19.dp,425.dp),color=Muted,fontSize=13.sp);ButtonLine("SAVE TO GOOGLE DOCS",470){};ButtonLine("BACK TO LIBRARY",528){}}}
 
