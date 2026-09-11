@@ -47,9 +47,9 @@ private val DraftLockDarkColorScheme = darkColorScheme(
 private val DisplayFont = androidx.compose.ui.text.font.FontFamily.SansSerif
 private val MonoFont = androidx.compose.ui.text.font.FontFamily.Monospace
 val DraftLockTypography = Typography(
-    headlineSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = (-0.5).let { androidx.compose.ui.unit.sp(it) }),
+    headlineSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = androidx.compose.ui.unit.sp(-0.5F)),
     titleMedium = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-    labelSmall = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, letterSpacing = (0.4).let { androidx.compose.ui.unit.sp(it) }),
+    labelSmall = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, letterSpacing = androidx.compose.ui.unit.sp(0.4F)),
     bodySmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont)
 )
 
