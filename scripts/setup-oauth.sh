@@ -27,34 +27,31 @@ curl -s -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
   "https://clientauthconfig.googleapis.com/v1/brands" \
   -d "{\"supportEmail\":\"$SUPPORT_EMAIL\",\"applicationTitle\":\"DraftLock\"}" 2>&1 | head -n 20 || echo "Brand may already exist or needs Console UI."
 
-echo "→ Creating Web OAuth client..."
-# Web client with AppAuth custom scheme redirect
-# Derive redirect URI will be filled after we get client ID; create without redirect then patch.
+echo "→ Creating Android OAuth client (fixes WEB custom-scheme error)..."
+# Android client uses package + SHA-1, no redirect URI to set — custom scheme auto-allowed
+SHA1=$(keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep SHA1 | awk '{print $2}' | head -n1)
+if [ -z "$SHA1" ]; then SHA1=$(./gradlew signingReport 2>/dev/null | grep SHA1 | head -n1 | awk '{print $2}'); fi
+echo "   Detected SHA-1: ${SHA1:-(not found — will prompt manual)}"
 CLIENT_JSON=$(curl -s -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
   -H "Content-Type: application/json" \
   "https://clientauthconfig.googleapis.com/v1/brands/*/clients" \
-  -d '{"displayName":"DraftLock Web","clientType":"WEB","web":{"redirectUris":[]}}' 2>&1 || true)
+  -d "{\"displayName\":\"DraftLock Android\",\"clientType\":\"ANDROID\",\"android\":{\"packageName\":\"com.draftlock.app\",\"sha1Fingerprint\":\"$SHA1\"}}" 2>&1 || true)
 echo "$CLIENT_JSON" | head -n 40
 
-# Fallback: use gcloud alpha (if available) or instruct manual creation
 if echo "$CLIENT_JSON" | grep -q "clientId"; then
   CLIENT_ID=$(echo "$CLIENT_JSON" | grep -o '"clientId"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n1 | cut -d'"' -f4)
-  echo "→ Client ID: $CLIENT_ID"
+  echo "→ Android Client ID: $CLIENT_ID"
 else
-  echo "→ Auto-creation failed (likely needs Console UI for Web client with custom scheme)."
-  echo "   Manual: console.cloud.google.com → APIs & Services → Credentials → Create OAuth client → Web application"
-  echo "   Name: DraftLock Web → Authorized redirect URIs: com.googleusercontent.apps.<PREFIX>:/oauth2redirect"
-  echo "   Then run: echo \"GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com\" > local.properties"
+  echo "→ Auto-creation failed (likely needs Console UI for Android client)."
+  echo "   Manual: console.cloud.google.com → Credentials → Create OAuth client → Android"
+  echo "   Package: com.draftlock.app → SHA-1: $SHA1 (from keytool/gradlew signingReport)"
+  echo "   Then: echo \"GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com\" > local.properties"
   exit 0
 fi
 
 PREFIX=$(echo "$CLIENT_ID" | cut -d'.' -f1)
 REDIRECT="com.googleusercontent.apps.${PREFIX}:/oauth2redirect"
-echo "→ Patching redirect URI: $REDIRECT"
-curl -s -X PATCH -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-  -H "Content-Type: application/json" \
-  "https://clientauthconfig.googleapis.com/v1/clients/${CLIENT_ID}" \
-  -d "{\"web\":{\"redirectUris\":[\"$REDIRECT\"]}}" 2>&1 | head -n 20
+echo "→ Android redirect (auto-allowed, no Console field): $REDIRECT"
 
 echo "GOOGLE_CLIENT_ID=$CLIENT_ID" > local.properties
 echo "GOOGLE_CLIENT_ID=$CLIENT_ID" > /tmp/local.properties

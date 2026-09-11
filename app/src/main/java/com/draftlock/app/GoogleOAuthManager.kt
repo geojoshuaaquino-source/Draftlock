@@ -34,7 +34,7 @@ class GoogleOAuthManager(private val context: Context) {
 
     fun startAuthorization(onError: (String) -> Unit = {}) {
         if (!isConfigured) {
-            onError("Add GOOGLE_CLIENT_ID to local.properties or set via Settings → Gmail. Get it from Google Cloud Console → Credentials → OAuth client Web.")
+            onError("Add GOOGLE_CLIENT_ID to local.properties or set via Settings → Gmail. Get it from Google Cloud Console → Credentials → OAuth client Android (Package com.draftlock.app + SHA-1). Web clients block custom scheme.")
             return
         }
         AuthorizationServiceConfiguration.fetchFromIssuer(Uri.parse("https://accounts.google.com")) { configuration, ex ->
