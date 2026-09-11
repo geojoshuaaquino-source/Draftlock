@@ -72,6 +72,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.draftlock.app.ui.theme.DraftLockColors
 import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
@@ -345,7 +350,7 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                 contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                 topBar = {
                     Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp) {
-                        Column(modifier = Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)) {
+                        Column(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Image(painter = painterResource(R.drawable.ic_logo_draftlock), contentDescription = null, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)))
                                 Column(Modifier.weight(1f)) {
@@ -407,7 +412,7 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                 Box(
                     Modifier.fillMaxSize()
                         .padding(pad)
-                        .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
                 ) {
                     AnimatedContent(
                         targetState = screen,
