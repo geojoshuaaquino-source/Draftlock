@@ -454,146 +454,205 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: List<AppRequirement>, lockedApps: List<LockedApp>, logic: String, context: Context, onWrite: () -> Unit, onOverride: () -> Unit) {
     val complete = vm.allConditionsComplete()
     val progress = (words.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    val isUnlocked = words >= quota && (requirements.filter { it.enabled }.isEmpty() || logic == "OR" && requirements.filter { it.enabled }.any { (vm.usageMinutes[it.packageName] ?: 0) >= it.requiredMinutes } || logic == "AND" && requirements.filter { it.enabled }.all { (vm.usageMinutes[it.packageName] ?: 0) >= it.requiredMinutes })
+
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            // Hero — purposeful editorial: single bg + centered vault, Melon green rationed to tiny badge (MelonUI principle)
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panelElevated), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(16.dp)).background(DraftLockColors.panelElevated)) {
-                    Image(painterResource(R.drawable.bg_structure_hero_melon), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.92f)
-                    Image(painterResource(R.drawable.illustration_vault_melon), null, modifier = Modifier.size(148.dp).align(Alignment.Center), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
-                    Box(Modifier.align(Alignment.TopEnd).padding(10.dp).clip(RoundedCornerShape(6.dp)).background(DraftLockColors.melonGreen).padding(horizontal = 7.dp, vertical = 3.dp)) {
-                        Text("MELON × VAULT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 0.6.sp, fontSize = 10.sp)
-                    }
-                }
-            }
-        }
-        // TRUE PHONE BENTO — not stacked list: 2-col mosaic vault + stats column, Gmail bento, Logic bento
-        item {
-            Row(Modifier.fillMaxWidth().height(176.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Left bento — vault (tall, glassStrong, 18dp) — phone adapted, takes 60% width
-                Card(colors = CardDefaults.cardColors(containerColor = GlassTokens.glassStrong), shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.weight(1.45f).fillMaxHeight()) {
-                    Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(DraftLockColors.accent), contentAlignment = Alignment.Center) {
-                                Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                            }
-                            Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if (complete) Color(0xFF1A2518) else Color(0xFF2A1A1C)).padding(horizontal = 8.dp, vertical = 5.dp)) {
-                                Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else DraftLockColors.neonPink, fontSize = 10.sp)
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("$words / $quota", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
-                            Text("$words inked", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF242430))) {
-                                Box(Modifier.fillMaxWidth(progress).height(8.dp).clip(RoundedCornerShape(8.dp)).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd))))
-                            }
-                            Text("${(progress*100).toInt()}% to goal", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent)
-                        }
-                        Button(onClick = onWrite, modifier = Modifier.fillMaxWidth().height(36.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(12.dp)) { Text("Write", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
-                    }
-                }
-                // Right bento column — 2 stacked glass minis (phone bento 0.85 width)
-                Column(Modifier.weight(0.85f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MiniStatCard("Req", "${requirements.size}", R.drawable.ic_rules, DraftLockColors.neonCyan, Modifier.weight(1f).fillMaxWidth())
-                    MiniStatCard("Blocked", "${lockedApps.size}", R.drawable.ic_lock_closed, DraftLockColors.neonPink, Modifier.weight(1f).fillMaxWidth())
-                }
-            }
+            // VAULT STATUS HUD — single hero card, no illustration, pure info density
+            VaultStatusCard(words = words, quota = quota, progress = progress, isUnlocked = isUnlocked, onWrite = onWrite)
         }
         item {
-            // Gmail bento + Logic bento side-by-side (phone 2-col, not stacked)
+            // GRID: 2x2 dense bento — Gmail | Logic / Req | Blocked
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0x22132A16) else GlassTokens.glass), modifier = Modifier.weight(1.35f), elevation = CardDefaults.cardElevation(0.dp)) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(Modifier.size(36.dp).clip(CircleShape).background(if (vm.isGoogleConnected) DraftLockColors.accent else Color(0xFF1A1A1E)), contentAlignment = Alignment.Center) {
-                            Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(18.dp))
+                // Gmail — wide, actionable
+                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.weight(1.6f)) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(40.dp).clip(CircleShape).background(if (vm.isGoogleConnected) DraftLockColors.accent else Color(0xFF1A1A1E)), contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(20.dp))
                         }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                            Text(if (vm.isGoogleConnected) "Gmail" else "Connect", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White)
-                            Text(if (vm.isGoogleConnected) "Linked" else "Baked m00s0…", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(if (vm.isGoogleConnected) "GMAIL SYNC" else "CONNECT GMAIL", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 0.8.sp)
+                            Text(if (vm.isGoogleConnected) "Auto-save to Docs • ${vm.syncStatus}" else "Baked client • tap to link", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
                         }
-                        if (vm.isGoogleConnected) TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) { Text("Unlink", fontSize = 11.sp) }
-                        else Button(onClick = { vm.startGoogleAuth(context) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Go", fontSize = 12.sp, fontWeight = FontWeight.Black) }
+                        if (vm.isGoogleConnected)
+                            TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) { Text("Unlink", fontSize = 11.sp) }
+                        else
+                            Button(onClick = { vm.startGoogleAuth(context) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("Link", fontSize = 11.sp, fontWeight = FontWeight.Black) }
                     }
                 }
-                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), modifier = Modifier.weight(0.85f), elevation = CardDefaults.cardElevation(0.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(painterResource(R.drawable.ic_melon_accent), null, tint = DraftLockColors.melonGreen, modifier = Modifier.size(18.dp))
-                        Text(logic, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleSmall, color = Color.White)
-                        Text("Logic", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+                // Logic — compact, shows current mode
+                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.weight(0.9f)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.size(32.dp).clip(CircleShape).background(DraftLockColors.melonGreen.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_melon_accent), null, tint = DraftLockColors.melonGreen, modifier = Modifier.size(16.dp))
+                        }
+                        Text(logic, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("UNLOCK MODE", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, letterSpacing = 0.6.sp, fontSize = 9.sp)
                     }
-                }
-            }
-        }
-        item { Text("Today’s Requirements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White) }
-        item { RequirementCard("Writing — Daily Goal", "$words / $quota words", words >= quota, isMain = true) }
-        items(requirements.filter { it.enabled }) { req ->
-            RequirementCard(req.displayName, "${vm.usageMinutes[req.packageName] ?: 0} / ${req.requiredMinutes} min", (vm.usageMinutes[req.packageName] ?: 0) >= req.requiredMinutes)
-        }
-        if (requirements.isEmpty()) item {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
-                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Image(painterResource(R.drawable.illustration_vault_empty), null, modifier = Modifier.size(120.dp).clip(RoundedCornerShape(12.dp)))
-                    Text("No requirements yet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("Add apps in Apps tab to require usage time before unlock.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
                 }
             }
         }
         item {
-            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(0.dp)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painterResource(if (complete) R.drawable.ic_lock_open else R.drawable.ic_lock_closed), null, tint = if (complete) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                        Text(if (complete) "All requirements met — apps unlocked" else "Apps are locked", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MicroStatCard("REQUIREMENTS", "${requirements.size}", DraftLockColors.neonCyan, R.drawable.ic_rules)
+                MicroStatCard("BLOCKED APPS", "${lockedApps.size}", DraftLockColors.neonPink, R.drawable.ic_lock_closed)
+            }
+        }
+        item {
+            // REQUIREMENTS LIST — compact, inline progress, no cards
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("REQUIREMENTS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = DraftLockColors.muted, letterSpacing = 0.8.sp)
+                    Text("${requirements.count { it.enabled }} ACTIVE", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent, fontWeight = FontWeight.Black)
+                }
+                RequirementRow("Writing — Daily Goal", words, quota, words >= quota, true)
+                requirements.filter { it.enabled }.forEach { req ->
+                    val used = vm.usageMinutes[req.packageName] ?: 0
+                    RequirementRow(req.displayName, used, req.requiredMinutes, used >= req.requiredMinutes, false)
+                }
+                if (requirements.filter { it.enabled }.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.CenterHorizontally) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(painterResource(R.drawable.ic_lock_closed), null, tint = DraftLockColors.muted.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
+                            Text("No app requirements", style = MaterialTheme.typography.titleSmall, color = DraftLockColors.muted)
+                            Text("Add in Apps tab → require usage time", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted.copy(alpha = 0.7f))
+                        }
                     }
-                    Text(if (complete) "Pro function clear." else "Logic: ${if (logic == "AND") "write AND all" else "write OR any"} to unlock.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
-                    Text(vm.blockingDiagnostics, style = MaterialTheme.typography.bodySmall, color = if (vm.blockingAvailable) DraftLockColors.accent else DraftLockColors.neonPink)
-                    if (!vm.blockingAvailable) {
-                        Button(onClick = { context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonPink), shape = RoundedCornerShape(12.dp)) { Text("Enable Popup Blocking") }
-                    }
-                    if (!vm.usageAccess) Button(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonCyan, contentColor = Color.White), shape = RoundedCornerShape(12.dp)) { Text("Enable Usage Access") }
-                    TextButton(onClick = onOverride, modifier = Modifier.fillMaxWidth()) { Text("Emergency override 15 min", style = MaterialTheme.typography.labelSmall) }
                 }
             }
         }
-        item { Spacer(Modifier.height(16.dp)) }
-    }
-}
-@androidx.compose.runtime.Composable private fun MiniStatCard(label:String, value:String, icon:Int, tint:Color, modifier: Modifier = Modifier) {
-    // Phone bento glass — 18dp, translucent + 1dp border, top 3dp tint rationed
-    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp)) {
-        Column(Modifier.background(Brush.horizontalGradient(listOf(tint.copy(alpha=0.14f), Color.Transparent))).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(28.dp).clip(CircleShape).background(tint.copy(alpha=0.14f)), contentAlignment = Alignment.Center) {
-                Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(16.dp))
+        item {
+            // BLOCKING STATUS — single line, diagnostic
+            Box(Modifier.fillMaxWidth().padding(14.dp).background(GlassTokens.glass, RoundedCornerShape(14.dp)).padding(1.dp).background(DraftLockColors.line.copy(alpha = 0.3f), RoundedCornerShape(14.dp))) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(Modifier.size(28.dp).clip(CircleShape).background(if (complete) DraftLockColors.accent.copy(alpha = 0.2f) else DraftLockColors.neonPink.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+                                Icon(painterResource(if (complete) R.drawable.ic_lock_open else R.drawable.ic_lock_closed), null, tint = if (complete) DraftLockColors.accent else DraftLockColors.neonPink, modifier = Modifier.size(14.dp))
+                            }
+                            Column {
+                                Text(if (complete) "VAULT OPEN" : "VAULT SEALED", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else Color.White)
+                                Text(if (complete) "All conditions satisfied" else "Logic: ${if (logic == "AND") "WRITE + ALL APPS" else "WRITE + ANY APP"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+                            }
+                        }
+                        if (!complete)
+                            Box(Modifier.clip(RoundedCornerShape(8.dp)).background(DraftLockColors.neonPink.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                                Text("LOCKED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = DraftLockColors.neonPink, letterSpacing = 0.5.sp, fontSize = 9.sp)
+                            }
+                    }
+                    Text(vm.blockingDiagnostics, style = MaterialTheme.typography.labelSmall, color = if (vm.blockingAvailable) DraftLockColors.muted else DraftLockColors.neonPink)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!vm.blockingAvailable) Button(onClick = { context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonPink.copy(alpha = 0.2f), contentColor = DraftLockColors.neonPink), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)) { Text("Popup Blocking", fontSize = 11.sp, fontWeight = FontWeight.Black) }
+                        if (!vm.usageAccess) Button(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonCyan.copy(alpha = 0.2f), contentColor = DraftLockColors.neonCyan), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)) { Text("Usage Access", fontSize = 11.sp, fontWeight = FontWeight.Black) }
+                        TextButton(onClick = onOverride, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)) { Text("Emergency 15m", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = DraftLockColors.gold) }
+                    }
+                }
             }
-            Spacer(Modifier.height(6.dp))
-            Text(value, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = Color.White)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
         }
-        Box(Modifier.fillMaxWidth().height(3.dp).background(tint))
     }
 }
+
 @androidx.compose.runtime.Composable
-private fun RequirementCard(name: String, value: String, complete: Boolean, isMain:Boolean=false) {
-    // Phone bento glass — 18dp, left accent 4dp for complete, dense typography
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0x1A142010) else GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp)) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(if(complete) DraftLockColors.accent else Color(0xFF242424)), contentAlignment = Alignment.Center) {
-                Icon(painterResource(if(complete) R.drawable.ic_trophy else if(isMain) R.drawable.ic_write else R.drawable.ic_analytics), null, tint = if(complete) Color.Black else DraftLockColors.muted, modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold, maxLines = 1); Text(value, style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted) }
-            Box(Modifier.size(28.dp).clip(CircleShape).background(if(complete) DraftLockColors.accent else Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
-                Text(if (complete) "✓" else "•", fontWeight = FontWeight.Black, color = if(complete) Color.Black else DraftLockColors.muted)
+private fun VaultStatusCard(words: Int, quota: Int, progress: Float, isUnlocked: Boolean, onWrite: () -> Unit) {
+    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glassStrong), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
+        Box(Modifier.padding(18.dp).background(Brush.verticalGradient(listOf(Color(0x1A00CD3C), Color(0x0A000000))), RoundedCornerShape(20.dp)).padding(1.dp).background(DraftLockColors.line.copy(alpha = 0.15f), RoundedCornerShape(20.dp))) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Header: status badge + level
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(if (isUnlocked) DraftLockColors.accent else Color(0xFF242424)), contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_write), null, tint = if (isUnlocked) Color.Black else DraftLockColors.muted, modifier = Modifier.size(22.dp))
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(if (isUnlocked) "DAILY GOAL MET" : "INK PROGRESS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (isUnlocked) DraftLockColors.accent else DraftLockColors.muted, letterSpacing = 0.8.sp)
+                            Text("$words / $quota words", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
+                        }
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("LVL ${(words / 500) + 1}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = DraftLockColors.melonGreen, letterSpacing = 1.0.sp)
+                        Text("VAULT", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, letterSpacing = 1.2.sp)
+                    }
+                }
+                // Progress bar — thick, gradient, centerpiece
+                Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF1A1A1A))) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(progress.coerceAtMost(1f))
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd)))
+                            .animateContentSize(animationSpec = tween(400, easing = EaseOutCubic))
+                    )
+                }
+                // Progress label
+                Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("${(progress * 100).toInt()}% complete", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent, fontWeight = FontWeight.Black)
+                    Text("${(quota - words).coerceAtLeast(0)} words to go", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                }
+                // Primary action — full width, distinct
+                Button(onClick = onWrite, modifier = Modifier.fillMaxWidth().height(48.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = if (isUnlocked) DraftLockColors.melonGreen else DraftLockColors.accent,
+                    contentColor = Color.Black
+                ), shape = RoundedCornerShape(14.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.ic_write), null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isUnlocked) "CONTINUE WRITING" : "OPEN VAULT & WRITE", fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 0.5.sp)
+                    }
+                }
             }
         }
     }
 }
+
+@androidx.compose.runtime.Composable
+private fun MicroStatCard(label: String, value: String, tint: Color, icon: Int) {
+    Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.weight(1f)) {
+        Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(18.dp))
+            }
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, letterSpacing = 0.6.sp, fontSize = 10.sp)
+        }
+        Box(Modifier.fillMaxWidth().height(2.dp).background(tint.copy(alpha = 0.5f)))
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun RequirementRow(name: String, current: Int, required: Int, complete: Boolean, isMain: Boolean) {
+    val p = (current.toFloat() / required.coerceAtLeast(1)).coerceIn(0f, 1f)
+    Row(Modifier.fillMaxWidth().padding(12.dp).background(if (complete) Color(0x10142010) else GlassTokens.glass, RoundedCornerShape(14.dp)).padding(1.dp).background(DraftLockColors.line.copy(alpha = if (complete) 0.3f else 0.1f), RoundedCornerShape(14.dp))) {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(if (complete) DraftLockColors.accent else Color(0xFF242424)), contentAlignment = Alignment.Center) {
+            Icon(painterResource(if (complete) R.drawable.ic_trophy else if (isMain) R.drawable.ic_write else R.drawable.ic_analytics), null, tint = if (complete) Color.Black else DraftLockColors.muted, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall, color = Color.White)
+                Text("$current / $required ${if (isMain) "words" else "min"}", style = MaterialTheme.typography.labelSmall, color = if (complete) DraftLockColors.accent else DraftLockColors.muted, fontWeight = FontWeight.Medium)
+            }
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1A1A1A))) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(p)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (complete) Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen)) else DraftLockColors.line.copy(alpha = 0.5f))
+                        .animateContentSize(animationSpec = tween(400, easing = EaseOutCubic))
+                )
+            }
+        }
+        Box(Modifier.size(36.dp).clip(CircleShape).background(if (complete) DraftLockColors.accent else Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
+            Text(if (complete) "✓" else "${(p * 100).toInt()}%", fontWeight = FontWeight.Black, color = if (complete) Color.Black else DraftLockColors.muted, fontSize = if (complete) 14.sp else 10.sp)
+        }
+    }
+}
+
 
 @androidx.compose.runtime.Composable
 private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
