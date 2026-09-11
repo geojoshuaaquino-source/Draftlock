@@ -110,6 +110,16 @@ object MelonTokens {
     val xs = 2; val sm = 4; val md = 8; val base = 12; val lg = 16; val xl = 24; val xxl = 32; val section = 48
     val radiusSharp = 0; val radiusPill = 999
 }
+// Dark glass + bento phone — purpose-built for phone (not web bento copy)
+object GlassTokens {
+    // dark glass: translucent white on ink base (frosted without blur dep)
+    val glass = Color(0x14FFFFFF) // 8% white — frosted
+    val glassStrong = Color(0x1FFFFFFF) // 12% — header
+    val glassBorder = Color(0x1AFFFFFF) // 10% border
+    val glassBorderStrong = Color(0x26FFFFFF)
+    val bentoRadius = 18 // phone bento cell radius — distinct from old 14-16 soup
+    val glassStroke = 1
+}
 // Colors exposed for prototype helpers + Game vibe + Melon converted
 object DraftLockColors {
     val bg = Bg
@@ -135,6 +145,10 @@ object DraftLockColors {
     val melonGray999 = MelonGray999
     val melonCanvas = MelonCanvas
     val melonRed = MelonRed
+    // glass
+    val glass = GlassTokens.glass
+    val glassStrong = GlassTokens.glassStrong
+    val glassBorder = GlassTokens.glassBorder
     // game gradients — now melon-lime + vault
     val bossGradient = listOf(Color(0xFF2A1020), Color(0xFF151515))
     val questGradient = listOf(Color(0xFF142010), Color(0xFF151515))

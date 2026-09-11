@@ -79,6 +79,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.draftlock.app.ui.theme.DraftLockColors
 import com.draftlock.app.ui.theme.DraftLockTheme
+import com.draftlock.app.ui.theme.GlassTokens
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -340,34 +341,32 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Purposeful layers — single subtle halftone + single vault radial (restraint: one memorable accent)
-            // MelonUI dense-grid used sparingly: only on hero, not full-screen jumble
+            // Dark base + single vault glow (glass will provide depth, not busy pattern)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F), Color(0xFF12121A)))), contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.10f)
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x14D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(300f, 80f), radius = 900f)))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x10D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(280f, 90f), radius = 900f)))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x0A00CD3C), Color.Transparent), center = androidx.compose.ui.geometry.Offset(120f, 700f), radius = 600f)))
             }
             Scaffold(
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
-                    Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+                    // Dark glass top — not opaque, translucent with border (phone glass)
+                    Surface(color = Color(0xE60F0F14), tonalElevation = 0.dp, shadowElevation = 0.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
                         Column {
-                            // Melon structure: sharp top accent (green rationed only on active — here LVL) — purposeful, single accent
-                            Box(Modifier.fillMaxWidth().height(3.dp).background(Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen, DraftLockColors.neonCyan))))
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(DraftLockColors.panelElevated), contentAlignment = Alignment.Center) {
-                                    Image(painter = painterResource(R.drawable.ic_logo_draftlock), null, modifier = Modifier.size(28.dp))
+                            Box(Modifier.fillMaxWidth().height(2.dp).background(Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen, DraftLockColors.neonCyan))))
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(DraftLockColors.glass).padding(1.dp).background(DraftLockColors.panelElevated, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                                    Image(painter = painterResource(R.drawable.ic_logo_draftlock), null, modifier = Modifier.size(24.dp))
                                 }
                                 Column(Modifier.weight(1f)) {
                                     Text("DRAFTLOCK", style = MaterialTheme.typography.labelMedium, color = Color.White, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black)
-                                    Text("Ink Vault × Melon • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Glass bento"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                                 }
-                                // melon green for max level, lime otherwise — demonstrates Melon token use
-                                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if ((todayWords/500)+1 >= 3) DraftLockColors.melonGreen else DraftLockColors.accent).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if ((todayWords/500)+1 >= 3) DraftLockColors.melonGreen else DraftLockColors.accent).padding(horizontal = 11.dp, vertical = 5.dp), contentAlignment = Alignment.Center) {
                                     Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
                                 }
                             }
-                            Divider(color = DraftLockColors.line, thickness = 1.dp)
+                            Divider(color = Color(0x1AFFFFFF), thickness = 1.dp)
                         }
                     }
                 },
@@ -386,12 +385,11 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                 },
                 floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
                 bottomBar = {
-                    // Fix nav bar blocked: respect system navigationBars inset (edge-to-edge)
-                    Surface(color = Color(0xFF0F0F14), tonalElevation = 8.dp, shadowElevation = 8.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
-                        Column {
-                            Divider(color = DraftLockColors.line, thickness = 1.dp)
+                    // Dark glass bento phone nav — floating pill (not opaque bar), 18dp bento radius, not blocked
+                    Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color(0xCC0F0F14)), elevation = CardDefaults.cardElevation(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).padding(bottom = 4.dp),
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -399,17 +397,17 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                                 navItems.forEach { item ->
                                     val selected = screen == item
                                     Box(
-                                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(14.dp))
-                                            .background(if (selected) Color(0xFF1E1E28) else Color.Transparent)
+                                        Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(16.dp))
+                                            .background(if (selected) GlassTokens.glassStrong else Color.Transparent)
                                             .clickable {
                                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 screen = item
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(19.dp))
+                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 10.sp)
                                         }
                                     }
                                 }
@@ -473,9 +471,9 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
             }
         }
         item {
-            // Hero vault — the one memorable element (frontend-design: spend boldness in one place)
-            Card(colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF1A1A1F), DraftLockColors.panel)), shape = RoundedCornerShape(16.dp)).padding(16.dp)) {
+            // Hero vault — dark glass bento (phone-adapted, not web copy): translucent + border, single lime accent
+            Card(colors = CardDefaults.cardColors(containerColor = GlassTokens.glassStrong), shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth().padding(1.dp).clip(RoundedCornerShape(18.dp)).background(DraftLockColors.panel, RoundedCornerShape(18.dp))) {
+                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0x121A1A1F), Color(0x0A14141C))), shape = RoundedCornerShape(18.dp)).padding(16.dp)) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -511,18 +509,19 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
             }
         }
         item {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0xFF132016) else Color.White), modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(1.dp)) {
+            // Gmail — dark glass bento (no white flip, consistent dark)
+            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0x22132A16) else GlassTokens.glassStrong), modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(0.dp)) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(44.dp).clip(CircleShape).background(if (vm.isGoogleConnected) DraftLockColors.accent else Color(0xFF1A1A1E)), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(22.dp))
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(if (vm.isGoogleConnected) "Gmail Connected" else "Connect Gmail", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = if (vm.isGoogleConnected) Color.Black else Color(0xFF1A1A1E))
-                        Text(if (vm.isGoogleConnected) "Docs sync active" else "One tap — like Gmail", style = MaterialTheme.typography.bodySmall, color = if (vm.isGoogleConnected) Color(0xFF2A2A2E) else DraftLockColors.muted)
-                        Text(vm.syncStatus, style = MaterialTheme.typography.labelSmall, color = if (vm.isGoogleConnected) Color(0xFF1F4D1A) else DraftLockColors.muted)
+                        Text(if (vm.isGoogleConnected) "Gmail Connected" else "Connect Gmail", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color.White)
+                        Text(if (vm.isGoogleConnected) "Docs sync active" else "Tap Connect — baked ID auto", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                        Text(vm.syncStatus, style = MaterialTheme.typography.labelSmall, color = if (vm.isGoogleConnected) DraftLockColors.accent else DraftLockColors.muted)
                     }
                     if (vm.isGoogleConnected) TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }) { Text("Unlink") }
-                    else Button(onClick = { vm.startGoogleAuth(context) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A1E), contentColor = Color.White), shape = RoundedCornerShape(12.dp)) { Text("Connect", fontWeight = FontWeight.Bold) }
+                    else Button(onClick = { vm.startGoogleAuth(context) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(12.dp)) { Text("Connect", fontWeight = FontWeight.Black) }
                 }
             }
         }
@@ -549,7 +548,7 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
             }
         }
         item {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
+            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(0.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(painterResource(if (complete) R.drawable.ic_lock_open else R.drawable.ic_lock_closed), null, tint = if (complete) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
@@ -569,10 +568,12 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
     }
 }
 @androidx.compose.runtime.Composable private fun MiniStatCard(label:String, value:String, icon:Int, tint:Color, modifier: Modifier = Modifier) {
-    // Bento stat — free structure style: bento elevated + top accent 3dp (Melon rationed green)
-    Card(modifier = modifier, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
-        Column(Modifier.background(Brush.horizontalGradient(listOf(tint.copy(alpha=0.18f), Color.Transparent))).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(18.dp))
+    // Phone bento glass — 18dp, translucent + 1dp border, top 3dp tint rationed
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp)) {
+        Column(Modifier.background(Brush.horizontalGradient(listOf(tint.copy(alpha=0.14f), Color.Transparent))).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.size(28.dp).clip(CircleShape).background(tint.copy(alpha=0.14f)), contentAlignment = Alignment.Center) {
+                Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(16.dp))
+            }
             Spacer(Modifier.height(6.dp))
             Text(value, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = Color.White)
             Text(label, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
@@ -582,8 +583,8 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
 }
 @androidx.compose.runtime.Composable
 private fun RequirementCard(name: String, value: String, complete: Boolean, isMain:Boolean=false) {
-    // MelonUI: sharp left accent (green for complete) — dense 12px body structure
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(if(complete) 0.dp else 14.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0xFF142010) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(complete) 4.dp else 1.dp)) {
+    // Phone bento glass — 18dp, left accent 4dp for complete, dense typography
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0x1A142010) else GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp)) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(36.dp).clip(CircleShape).background(if(complete) DraftLockColors.accent else Color(0xFF242424)), contentAlignment = Alignment.Center) {
                 Icon(painterResource(if(complete) R.drawable.ic_trophy else if(isMain) R.drawable.ic_write else R.drawable.ic_analytics), null, tint = if(complete) Color.Black else DraftLockColors.muted, modifier = Modifier.size(18.dp))
@@ -827,9 +828,9 @@ private fun DocsScreen(vm: DraftLockViewModel) {
     if (showClientDialog) {
         AlertDialog(onDismissRequest = { showClientDialog = false }, title = { Text("Connect Gmail") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Paste your Google OAuth Client ID (…apps.googleusercontent.com). Offline writing is bonus — Gmail link is primary.", style = MaterialTheme.typography.bodySmall)
+                Text("Baked ID is 149732972265-m00s0… — if it fails, paste your Android Client ID (…apps.googleusercontent.com). Offline is bonus, Gmail primary.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(value = clientIdInput, onValueChange = { clientIdInput = it }, label = { Text("Client ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Text("Create ID in Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Web). Or add GOOGLE_CLIENT_ID to local.properties and rebuild.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                Text("Create: Console → Credentials → Create OAuth client → Android → Package com.draftlock.app + SHA-1 (runner CE:A8:92:E8:... or your local). Baked ID auto-works, no rebuild needed after paste.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
             }
         }, confirmButton = { TextButton(onClick = {
             if (clientIdInput.contains(".apps.googleusercontent.com")) {
@@ -1012,9 +1013,9 @@ private fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int
                     } else {
                         Button(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.panelElevated, contentColor = Color.White)) { Text("Unlink Gmail") }
                     }
-                    Divider(color = DraftLockColors.line)
-                    Text("Advanced — custom Client ID (optional)", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                    OutlinedTextField(value = clientIdText, onValueChange = { clientIdText = it }, label = { Text("xxx.apps.googleusercontent.com") }, placeholder = { Text("Leave blank to use baked demo ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(10.dp))
+                    Divider(color = Color(0x1AFFFFFF))
+                    Text("Advanced — custom Client ID (only if baked fails)", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                    OutlinedTextField(value = clientIdText, onValueChange = { clientIdText = it }, label = { Text("xxx.apps.googleusercontent.com") }, placeholder = { Text("Baked 149732972265-m00s0… auto") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             if (clientIdText.contains(".apps.googleusercontent.com")) {
@@ -1023,7 +1024,7 @@ private fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int
                         }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.gold, contentColor = Color.Black)) { Text("Save ID") }
                         TextButton(onClick = { clientIdText = ""; context.getSharedPreferences("draftlock_runtime", Context.MODE_PRIVATE).edit().remove("runtime_google_client_id").apply(); vm.checkGoogleConnection() }) { Text("Clear") }
                     }
-                    Text("Create ID: Cloud Console → APIs & Services → Credentials → Create OAuth client → Web application. Or set GOOGLE_CLIENT_ID in local.properties / GitHub secret.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                    Text("Baked ID is 149732972265-m00s0ja9… — auto, no paste. If error, create Android: Console → Credentials → Create OAuth client → Android → Package com.draftlock.app + SHA-1 CE:A8:92:E8:88:BA:A6:58:43:F0:0D:72:BF:7E:9D:9D:72:BE:51:3B", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                 }
             }
         }
