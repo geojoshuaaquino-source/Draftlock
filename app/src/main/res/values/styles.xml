@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.DraftLock" parent="android:style/Theme.Material.DayNight.NoActionBar">
+    <style name="Theme.DraftLock" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:statusBarColor">@color/draft_bg</item>
