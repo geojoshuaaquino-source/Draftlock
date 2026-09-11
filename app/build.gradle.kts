@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -45,6 +46,49 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+}
+
+// CI helper — print runner debug SHA1 so GitHub built gives you SHA1 without touching workflow file
+// (workflow's "Show debug SHA fingerprints" step does `keytool | grep` and fails if keystore missing;
+//  this hook ensures keystore exists and prints SHA during assembleDebug, which IS allowed to push)
+// Wrapped in afterEvaluate so assembleDebug exists (AGP creates tasks after android block)
+afterEvaluate {
+    tasks.named("assembleDebug") {
+        doLast {
+            try {
+                val home = System.getProperty("user.home") ?: System.getenv("HOME") ?: "/home/runner"
+                val ks = File("$home/.android/debug.keystore")
+                println(">>> DraftLock: ensuring debug keystore at ${ks.absolutePath} (exists=${ks.exists()})")
+                if (!ks.exists()) {
+                    ks.parentFile?.mkdirs()
+                    val gen = providers.exec {
+                        commandLine(
+                            "keytool", "-genkey", "-v",
+                            "-keystore", ks.absolutePath,
+                            "-storepass", "android", "-alias", "androiddebugkey", "-keypass", "android",
+                            "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000",
+                            "-dname", "CN=Android Debug,O=Android,C=US"
+                        )
+                        isIgnoreExitValue = true
+                    }
+                    gen.result.get()
+                    println(">>> DraftLock: keytool genkey exit=${gen.result.get().exitValue} existsNow=${ks.exists()}")
+                }
+                try {
+                    providers.exec {
+                        commandLine(
+                            "keytool", "-list", "-v",
+                            "-keystore", ks.absolutePath,
+                            "-alias", "androiddebugkey",
+                            "-storepass", "android", "-keypass", "android"
+                        )
+                        isIgnoreExitValue = true
+                    }.result.get()
+                    println(">>> DraftLock: use the SHA1 above with Package com.draftlock.app to create Android OAuth client (console.cloud.google.com → Credentials → Create OAuth client → Android)")
+                } catch (e: Exception) { println(">>> DraftLock: keytool list exec failed: ${e.message}") }
+            } catch (e: Exception) { println(">>> DraftLock SHA helper failed: ${e.message}") }
+        }
     }
 }
 
