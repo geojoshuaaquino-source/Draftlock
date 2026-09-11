@@ -17,11 +17,21 @@ import net.openid.appauth.TokenResponse
 class GoogleOAuthManager(private val context: Context) {
     private val authService = AuthorizationService(context)
     private val store = SecureAuthStore(context)
-    private val redirectUri = Uri.parse("com.googleusercontent.apps.${BuildConfig.GOOGLE_CLIENT_ID.substringBefore(".apps.googleusercontent.com")}:/oauth2redirect")
+    private val effectiveClientId: String get() {
+        val runtime = context.getSharedPreferences("draftlock_runtime", Context.MODE_PRIVATE).getString("runtime_google_client_id", null)
+        if (!runtime.isNullOrBlank() && runtime.contains(".apps.googleusercontent.com")) return runtime.trim()
+        return BuildConfig.GOOGLE_CLIENT_ID
+    }
+    private val redirectUri: Uri get() = Uri.parse("com.googleusercontent.apps.${effectiveClientId.substringBefore(".apps.googleusercontent.com")}:/oauth2redirect")
     private val driveScope = "https://www.googleapis.com/auth/drive.file"
     private val docsScope = "https://www.googleapis.com/auth/documents"
 
-    val isConfigured: Boolean get() = !BuildConfig.GOOGLE_CLIENT_ID.startsWith("YOUR_") && BuildConfig.GOOGLE_CLIENT_ID.contains(".apps.googleusercontent.com")
+    val isConfigured: Boolean get() = !effectiveClientId.startsWith("YOUR_") && effectiveClientId.contains(".apps.googleusercontent.com")
+
+    fun setRuntimeClientId(id: String) {
+        context.getSharedPreferences("draftlock_runtime", Context.MODE_PRIVATE).edit().putString("runtime_google_client_id", id.trim()).apply()
+    }
+    fun getEffectiveClientId(): String = effectiveClientId
 
     fun startAuthorization(onError: (String) -> Unit = {}) {
         if (!isConfigured) {
@@ -35,7 +45,7 @@ class GoogleOAuthManager(private val context: Context) {
             }
             val request = AuthorizationRequest.Builder(
                 configuration,
-                BuildConfig.GOOGLE_CLIENT_ID,
+                effectiveClientId,
                 ResponseTypeValues.CODE,
                 redirectUri
             ).setScope("openid email profile $driveScope $docsScope").build()

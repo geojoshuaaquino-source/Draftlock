@@ -46,4 +46,7 @@ interface DraftLockDao {
 
     @Query("SELECT * FROM local_documents WHERE id = :id LIMIT 1")
     suspend fun getLocalDoc(id: Long): LocalDocument?
+
+    @Query("SELECT * FROM locked_apps WHERE packageName = :pkg LIMIT 1")
+    suspend fun getLockedAppSync(pkg: String): LockedApp?
 }

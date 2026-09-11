@@ -16,13 +16,22 @@ class AppBlocker(private val context: Context) {
         val isDO = dpm.isDeviceOwnerApp(context.packageName)
         val isPO = dpm.isProfileOwnerApp(context.packageName)
         val adminActive = dpm.isAdminActive(admin)
+        val accessibilityOn = isAccessibilityEnabled()
         return when {
-            isDO -> "Device Owner ✓ — strong blocking active"
-            isPO -> "Profile Owner ✓ — strong blocking active"
-            adminActive -> "Device Admin active but NOT owner — run: adb shell dpm set-device-owner com.draftlock.app/.admin.DraftLockDeviceAdminReceiver (needs fresh device/no accounts)"
-            else -> "Not device owner — blocking unavailable. Set up via adb on a test device you control; otherwise apps show as LOCKED but won't auto-suspend."
+            isDO -> "Device Owner ✓ — strong suspend + popup active"
+            isPO -> "Profile Owner ✓ — strong suspend + popup active"
+            accessibilityOn -> "Popup blocking ✓ — accessibility service is ON (no device-owner needed). Enable Usage Access too for timers."
+            adminActive -> "Device Admin but NOT owner — enable Accessibility (Settings → Accessibility → DraftLock) for popup blocking, or: adb shell dpm set-device-owner com.draftlock.app/.admin.DraftLockDeviceAdminReceiver"
+            else -> "Enable Accessibility → DraftLock for popup blocking (needs no device-owner). Strong suspend needs device-owner via adb on a test device."
         }
     }
+
+    private fun isAccessibilityEnabled(): Boolean {
+        val enabled = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+        return enabled.contains("${context.packageName}/${context.packageName}.DraftLockAccessibilityService")
+    }
+
+    fun isPopupBlockingAvailable(): Boolean = isAccessibilityEnabled()
 
     fun suspend(packages: List<String>): List<String> {
         if (!canSuspendApps() || packages.isEmpty()) return emptyList()

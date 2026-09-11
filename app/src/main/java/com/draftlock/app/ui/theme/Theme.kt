@@ -44,6 +44,15 @@ private val DraftLockDarkColorScheme = darkColorScheme(
     outlineVariant = Line.copy(alpha = 0.5f)
 )
 
+private val DisplayFont = androidx.compose.ui.text.font.FontFamily.SansSerif
+private val MonoFont = androidx.compose.ui.text.font.FontFamily.Monospace
+val DraftLockTypography = Typography(
+    headlineSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = (-0.5).let { androidx.compose.ui.unit.sp(it) }),
+    titleMedium = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+    labelSmall = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, letterSpacing = (0.4).let { androidx.compose.ui.unit.sp(it) }),
+    bodySmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont)
+)
+
 @Composable
 fun DraftLockTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -51,21 +60,21 @@ fun DraftLockTheme(
 ) {
     MaterialTheme(
         colorScheme = DraftLockDarkColorScheme,
-        typography = Typography(),
+        typography = DraftLockTypography,
         content = content
     )
 }
 
-// Animation specs - centralized for consistency (game vibe: Stripe/Linear/Apple)
+// Animation specs – instant, no stagger delay (fix lag report)
 object DraftLockMotion {
-    val SpringMedium = spring<Float>(dampingRatio = 0.8f, stiffness = 300f)
-    val SpringGentle = spring<Float>(dampingRatio = 0.85f, stiffness = 200f)
-    val SpringBouncy = spring<Float>(dampingRatio = 0.6f, stiffness = 400f) // for level-up pops
-    val EaseOut = tween<Float>(300, easing = EaseOutCubic)
-    val EaseInOut = tween<Float>(400, easing = EaseInOutCubic)
-    val QuickSnap = tween<Float>(200, easing = LinearOutSlowInEasing)
-    const val StaggerMs = 45 // ms per card for bento stagger
-    const val HeroDuration = 600
+    val SpringMedium = spring<Float>(dampingRatio = 0.9f, stiffness = 500f)
+    val SpringGentle = spring<Float>(dampingRatio = 0.9f, stiffness = 400f)
+    val SpringBouncy = spring<Float>(dampingRatio = 0.85f, stiffness = 600f)
+    val EaseOut = tween<Float>(140, easing = EaseOutCubic)
+    val EaseInOut = tween<Float>(160, easing = EaseInOutCubic)
+    val QuickSnap = tween<Float>(110, easing = LinearOutSlowInEasing)
+    const val StaggerMs = 0 // no delay – instant
+    const val HeroDuration = 180
 }
 
 // Infinite pulse for cursor/active states
