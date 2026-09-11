@@ -23,7 +23,7 @@ jobs:
         with:
           gradle-version: '8.13'
       - name: Compile debug
-        run: gradle :app:compileDebugKotlin --stacktrace --info 2>&1 | tail -n 500
+        run: gradle :app:compileDebugKotlin
 
   phase-2-package:
     name: Phase 2 — Build & Publish APK
