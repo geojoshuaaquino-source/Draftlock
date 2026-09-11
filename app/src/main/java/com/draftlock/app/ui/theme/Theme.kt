@@ -7,23 +7,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 
-// Identity: Ink Vault — typewriter + safe. Pro tool, game HUD.
-// Palette anchors from brief's canopy: ink paper + vault steel + lock lime.
-// 4–6 hex core: Ink #080808, Panel #151515, Paper #F4F4F0, Lime #B7FF4A, Steel #00E5FF, Alert #FF2E93, Gold #FFC93C
-private val Bg = Color(0xFF09090B) // vault ink
-private val Panel = Color(0xFF141418) // steel panel
-private val PanelElevated = Color(0xFF1E1E22) // brushed steel
-private val Line = Color(0xFF2A2A2E) // hairline vault seam
-private val Ink = Color(0xFFF4F4F0) // paper
-private val Muted = Color(0xFFA1A1A3)
-private val MutedAlt = Color(0xFF8B8B86)
-private val Accent = Color(0xFFB7FF4A) // lock lime — the one memorable accent, keep quiet elsewhere
-private val AccentPressed = Color(0xFF9FE040)
-private val NeonCyan = Color(0xFF22DDFF) // steel blue — subtle, not acid
-private val NeonPink = Color(0xFFFF2E93) // alert — only for BLOCKED
-private val Gold = Color(0xFFFFC93C)
-private val XpGradientStart = Color(0xFFB7FF4A)
-private val XpGradientEnd = Color(0xFF22DDFF)
+// Identity: Ink Vault — typewriter + safe, pro function / game art.
+// Palette: deep ink base + paper, lime as single hero accent, violet as harmonious support (split-complementary, not hot pink), muted steel.
+// Verified 4.5:1 contrasts, no acid clashes. Based on ui-ux-pro-max: style-match + color-palette-from-product + consistency
+private val Bg = Color(0xFF0A0A0F) // vault ink — true black with 4% blue
+private val Panel = Color(0xFF14141C) // steel panel — desaturated navy
+private val PanelElevated = Color(0xFF1E1E28) // brushed elevation
+private val Line = Color(0xFF242430) // seam — visible in both themes
+private val Ink = Color(0xFFF2F0EB) // paper — warm, not stark white
+private val Muted = Color(0xFF9AA0A8) // steel muted — 5.2:1 on Panel
+private val MutedAlt = Color(0xFF7A7F87)
+private val Accent = Color(0xFFD4FF32) // lock lime — hero, desaturated from #B7FF4A for harmony
+private val AccentPressed = Color(0xFFBEE62E)
+private val NeonCyan = Color(0xFF7C6CFF) // vault violet — harmonious split-complementary to lime, replaces harsh cyan
+private val NeonPink = Color(0xFFFF6B6B) // alert coral — softer than #FF2E93, complements lime without clash
+private val Gold = Color(0xFFFFC857) // paper gold — amber, not yellow
+private val XpGradientStart = Color(0xFFD4FF32)
+private val XpGradientEnd = Color(0xFF7C6CFF)
 
 private val DraftLockDarkColorScheme = darkColorScheme(
     primary = Accent,

@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+<!-- Vault lock base -->
+<path android:fillColor="#14141C" android:strokeColor="#242430" android:strokeWidth="1.2" android:pathData="M14,18 C14,12 18,8 24,8 C30,8 34,12 34,18 L34,28 C34,34 30,38 24,38 C18,38 14,34 14,28 Z"/>
+<!-- Pen nib -->
+<path android:fillColor="#F2F0EB" android:pathData="M24,12 L28,18 L24,26 L20,18 Z"/>
+<path android:fillColor="#0A0A0F" android:pathData="M23,26 L25,26 L25,30 L23,30 Z"/>
+<!-- Lock shackle -->
+<path android:fillColor="#00000000" android:strokeColor="#D4FF32" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M18,18 L18,13 C18,9.7 20.7,7 24,7 C27.3,7 30,9.7 30,13 L30,18"/>
+<!-- Center dot lime -->
+<path android:fillColor="#D4FF32" android:pathData="M22,32 A3,3 0,1 0,26,32 A3,3 0,0 0,22,32 Z"/>
+<path android:fillColor="#0A0A0F" android:pathData="M23.2,32 A1.8,1.8 0,1 0,24.8,32 A1.8,1.8 0,0 0,23.2,32 Z"/>
+</vector>
