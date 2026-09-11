@@ -72,6 +72,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.weight
+import androidx.compose.ui.text.TextOverflow
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -535,7 +537,7 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
                                 Icon(painterResource(if (complete) R.drawable.ic_lock_open else R.drawable.ic_lock_closed), null, tint = if (complete) DraftLockColors.accent else DraftLockColors.neonPink, modifier = Modifier.size(14.dp))
                             }
                             Column {
-                                Text(if (complete) "VAULT OPEN" : "VAULT SEALED", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else Color.White)
+                                Text(if (complete) "VAULT OPEN" else "VAULT SEALED", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else Color.White)
                                 Text(if (complete) "All conditions satisfied" else "Logic: ${if (logic == "AND") "WRITE + ALL APPS" else "WRITE + ANY APP"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
                             }
                         }
@@ -568,7 +570,7 @@ private fun VaultStatusCard(words: Int, quota: Int, progress: Float, isUnlocked:
                             Icon(painterResource(R.drawable.ic_write), null, tint = if (isUnlocked) Color.Black else DraftLockColors.muted, modifier = Modifier.size(22.dp))
                         }
                         Column(Modifier.weight(1f)) {
-                            Text(if (isUnlocked) "DAILY GOAL MET" : "INK PROGRESS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (isUnlocked) DraftLockColors.accent else DraftLockColors.muted, letterSpacing = 0.8.sp)
+                            Text(if (isUnlocked) "DAILY GOAL MET" else "INK PROGRESS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (isUnlocked) DraftLockColors.accent else DraftLockColors.muted, letterSpacing = 0.8.sp)
                             Text("$words / $quota words", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
                         }
                     }
@@ -642,7 +644,7 @@ private fun RequirementRow(name: String, current: Int, required: Int, complete: 
                         .fillMaxWidth(p)
                         .height(4.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (complete) Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen)) else DraftLockColors.line.copy(alpha = 0.5f))
+                        .background(if (complete) Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen)) else Brush.horizontalGradient(listOf(DraftLockColors.line.copy(alpha = 0.5f), DraftLockColors.line.copy(alpha = 0.5f))))
                         .animateContentSize(animationSpec = tween(400, easing = EaseOutCubic))
                 )
             }
