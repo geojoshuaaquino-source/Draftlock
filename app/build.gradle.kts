@@ -14,7 +14,7 @@ val localProperties = Properties().apply {
 val envClientId = System.getenv("GOOGLE_CLIENT_ID")
 val googleClientId = envClientId?.takeIf { it.isNotBlank() }
     ?: localProperties.getProperty("GOOGLE_CLIENT_ID")
-    ?: "149732972265-i4i3hi7vfccba5c2ig4cavt5jitd1kat.apps.googleusercontent.com"
+    ?: "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
 val redirectPrefix = googleClientId.substringBefore(".apps.googleusercontent.com")
 
 android {
