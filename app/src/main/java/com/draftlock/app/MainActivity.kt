@@ -107,13 +107,18 @@ private enum class Screen(val label: String, val iconRes: Int) {
 
 class MainActivity : ComponentActivity() {
     private lateinit var oauthManager: GoogleOAuthManager
+    private var draftLockVm: DraftLockViewModel? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Thread.setDefaultUncaughtExceptionHandler { _, e -> android.util.Log.e("DraftLock", "Uncaught", e) }
         try { WindowCompat.setDecorFitsSystemWindows(window, false) } catch (_: Exception) {}
         oauthManager = GoogleOAuthManager(this)
         handleOAuthIntent(intent)
-        setContent { DraftLockApp() }
+        setContent {
+            val vm: DraftLockViewModel = viewModel()
+            draftLockVm = vm
+            DraftLockApp(vm)
+        }
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -122,7 +127,16 @@ class MainActivity : ComponentActivity() {
     private fun handleOAuthIntent(intent: Intent?) {
         if (intent == null) return
         if (intent.data?.toString()?.contains("/oauth2redirect") == true || intent.hasExtra("net.openid.appauth.AuthorizationResponse")) {
-            oauthManager.handleResult(intent) { _, _ -> }
+            oauthManager.handleResult(intent) { ok, msg ->
+                val vm = draftLockVm
+                if (ok) {
+                    vm?.checkGoogleConnection()
+                    vm?.saveGoogleStatus("Gmail linked ✓ Fetching chapters…")
+                    vm?.fetchDriveFiles()
+                } else {
+                    vm?.saveGoogleStatus(msg)
+                }
+            }
         }
     }
 }
@@ -323,7 +337,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.compose.runtime.Composable
-fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
+fun DraftLockApp(vm: DraftLockViewModel) {
     val requirements by vm.requirements.collectAsStateWithLifecycle()
     val lockedApps by vm.lockedApps.collectAsStateWithLifecycle()
     val text by vm.text.collectAsStateWithLifecycle()
@@ -339,7 +353,8 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
     var showOverride by remember { mutableStateOf(false) }
 
     LaunchedEffect(requirements) { vm.refreshUsage() }
-    LaunchedEffect(Unit) { while (true) { delay(30_000); vm.refreshUsage() } }
+    LaunchedEffect(Unit) { vm.checkGoogleConnection(); if (vm.isGoogleConnected) vm.fetchDriveFiles(); while (true) { delay(30_000); vm.refreshUsage(); vm.checkGoogleConnection() } }
+    LaunchedEffect(vm.isGoogleConnected) { if (vm.isGoogleConnected) vm.fetchDriveFiles() }
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
@@ -355,7 +370,7 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                     // Dark glass top — not opaque, translucent with border (phone glass)
                     Surface(color = Color(0xE60F0F14), tonalElevation = 0.dp, shadowElevation = 0.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
                         Column {
-                            Box(Modifier.fillMaxWidth().height(2.dp).background(Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen, DraftLockColors.neonCyan))))
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(DraftLockColors.accent))
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(DraftLockColors.glass).padding(1.dp).background(DraftLockColors.panelElevated, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
                                     Image(painter = painterResource(R.drawable.ic_logo_draftlock), null, modifier = Modifier.size(24.dp))
@@ -372,48 +387,41 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                         }
                     }
                 },
-                floatingActionButton = {
-                    if (screen != Screen.WRITE) {
-                        androidx.compose.material3.FloatingActionButton(
-                            onClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); screen = Screen.WRITE },
-                            containerColor = DraftLockColors.accent,
-                            contentColor = Color.Black,
-                            shape = CircleShape,
-                            modifier = Modifier.size(56.dp)
-                        ) {
-                            Icon(painterResource(R.drawable.ic_write), null, modifier = Modifier.size(24.dp))
-                        }
-                    }
-                },
-                floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
                 bottomBar = {
-                    // Dark glass bento phone nav — floating pill (not opaque bar), 18dp bento radius, not blocked
-                    Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color(0xCC0F0F14)), elevation = CardDefaults.cardElevation(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val navItems = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS)
-                                navItems.forEach { item ->
-                                    val selected = screen == item
-                                    Box(
-                                        Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(16.dp))
-                                            .background(if (selected) GlassTokens.glassStrong else Color.Transparent)
-                                            .clickable {
-                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                screen = item
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(19.dp))
-                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 10.sp)
+                    // Ink Vault nav — single stylized pill, Write centered & elevated inside (no external FAB)
+                    Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = Color(0xF514141C)), elevation = CardDefaults.cardElevation(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            Box(Modifier.padding(horizontal = 6.dp, vertical = 8.dp).background(Color(0x14FFFFFF), RoundedCornerShape(28.dp)).padding(4.dp)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+                                    val left = listOf(Screen.HOME, Screen.APPS)
+                                    val right = listOf(Screen.DOCS, Screen.SETTINGS)
+                                    left.forEach { item ->
+                                        val selected = screen == item
+                                        Box(Modifier.weight(1f).height(42.dp).clip(RoundedCornerShape(16.dp)).background(if (selected) GlassTokens.glassStrong else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }, contentAlignment = Alignment.Center) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Icon(painterResource(item.iconRes), null, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(18.dp))
+                                                Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 9.sp, letterSpacing = 0.5.sp)
+                                            }
+                                        }
+                                    }
+                                    // Center Write — special, elevated, lime vault
+                                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                        Box(Modifier.size(56.dp).clip(CircleShape).background(Brush.linearGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen))).clickable { haptics.performHapticFeedback(HapticFeedbackType.LongPress); screen = Screen.WRITE }.padding(1.dp).background(Color(0x1A000000), CircleShape), contentAlignment = Alignment.Center) {
+                                            Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                    right.forEach { item ->
+                                        val selected = screen == item
+                                        Box(Modifier.weight(1f).height(42.dp).clip(RoundedCornerShape(16.dp)).background(if (selected) GlassTokens.glassStrong else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }, contentAlignment = Alignment.Center) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Icon(painterResource(item.iconRes), null, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(18.dp))
+                                                Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 9.sp, letterSpacing = 0.5.sp)
+                                            }
                                         }
                                     }
                                 }
                             }
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
                         }
                     }
                 }
@@ -476,11 +484,14 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
                             Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(20.dp))
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(if (vm.isGoogleConnected) "GMAIL SYNC" else "CONNECT GMAIL", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 0.8.sp)
-                            Text(if (vm.isGoogleConnected) "Auto-save to Docs • ${vm.syncStatus}" else "Baked client • tap to link", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+                            Text(if (vm.isGoogleConnected) "GMAIL ✓" else "CONNECT GMAIL", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if(vm.isGoogleConnected) DraftLockColors.accent else Color.White, letterSpacing = 0.8.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (vm.isSyncing) CircularProgressIndicator(modifier = Modifier.size(10.dp), strokeWidth = 1.5.dp, color = DraftLockColors.accent)
+                                Text(if(vm.isSyncing) "Fetching chapters…" else if(vm.isGoogleConnected && vm.driveFiles.isNotEmpty()) "${vm.driveFiles.size} chapters • ${vm.syncStatus.take(18)}" else if(vm.isGoogleConnected) vm.syncStatus else "Baked m00s0… tap to link", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                         if (vm.isGoogleConnected)
-                            TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) { Text("Unlink", fontSize = 11.sp) }
+                            TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection(); vm.saveGoogleStatus("Gmail unlinked") }, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) { Text("Unlink", fontSize = 11.sp, color = DraftLockColors.muted) }
                         else
                             Button(onClick = { vm.startGoogleAuth(context) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("Link", fontSize = 11.sp, fontWeight = FontWeight.Black) }
                     }
@@ -685,8 +696,8 @@ private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota:
                 Text("Every keystroke counts — bonus local docs also tally to daily goal. Gmail sync is optional.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
             }
         }
-        OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxWidth().weight(1f), placeholder = { Text("Start writing — ink the vault…") }, shape = RoundedCornerShape(14.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line, focusedContainerColor = Color(0xFFFDFBF7), unfocusedContainerColor = Color(0xFFFDFBF7), focusedTextColor = Color(0xFF1A1A1E), unfocusedTextColor = Color(0xFF1A1A1E)))
-        Text("Professional: words tally instantly, no animations delay. Game art: lime progress + steel vault.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+        OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxWidth().weight(1f), placeholder = { Text("Start writing — ink the vault…", color = DraftLockColors.muted) }, shape = RoundedCornerShape(14.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line, focusedContainerColor = DraftLockColors.panelElevated, unfocusedContainerColor = DraftLockColors.panel, focusedTextColor = DraftLockColors.ink, unfocusedTextColor = DraftLockColors.ink, cursorColor = DraftLockColors.accent, focusedPlaceholderColor = DraftLockColors.muted, unfocusedPlaceholderColor = DraftLockColors.muted))
+        Text("Ink Vault dark — paper steel, lime vault only. Auto-saves per keystroke.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
     }
 }
 
@@ -904,27 +915,30 @@ private fun DocsScreen(vm: DraftLockViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0xFF132016) else Color.White), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
+            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glassStrong), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(44.dp).clip(CircleShape).background(if(vm.isGoogleConnected) DraftLockColors.accent else Color.White), contentAlignment = Alignment.Center) {
-                            Icon(painterResource(R.drawable.ic_google), null, tint = Color.Black, modifier = Modifier.size(22.dp))
+                        Box(Modifier.size(44.dp).clip(CircleShape).background(if(vm.isGoogleConnected) DraftLockColors.accent else Color(0xFF1A1A1E)), contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_google), null, tint = if(vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(22.dp))
                         }
                         Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(if (vm.isGoogleConnected) "Gmail Connected" else "Connect your Gmail", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleSmall)
-                            Text(vm.syncStatus, style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(if (vm.isGoogleConnected) "GMAIL CONNECTED ✓" else "CONNECT GMAIL", fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall, color = if(vm.isGoogleConnected) DraftLockColors.accent else Color.White, letterSpacing = 0.8.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (vm.isSyncing) CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp, color = DraftLockColors.accent)
+                                Text(if(vm.isSyncing) "Fetching chapters…" else if(vm.isGoogleConnected && vm.driveFiles.isNotEmpty()) "${vm.driveFiles.size} chapters • ${vm.syncStatus}" else vm.syncStatus, style = MaterialTheme.typography.labelSmall, color = if(vm.isGoogleConnected) DraftLockColors.ink else DraftLockColors.muted, fontSize = 10.sp)
+                            }
                         }
-                        if (vm.isGoogleConnected) TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection(); vm.saveGoogleStatus("Gmail unlinked") }) { Text("Unlink") }
+                        if (vm.isGoogleConnected) TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection(); vm.saveGoogleStatus("Gmail unlinked") }) { Text("Unlink", color = DraftLockColors.muted) }
                         else Button(onClick = {
                             if (vm.isGoogleConfigured) vm.startGoogleAuth(context) else showClientDialog = true
-                        }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)) { Text("Connect Gmail", fontWeight = FontWeight.Bold) }
+                        }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(12.dp)) { Text("Connect", fontWeight = FontWeight.Black) }
                     }
                     if (!vm.isGoogleConfigured) {
-                        TextButton(onClick = { showClientDialog = true }) { Text("Enter Client ID (one-time setup)", style = MaterialTheme.typography.labelSmall) }
+                        TextButton(onClick = { showClientDialog = true }) { Text("Enter Client ID (one-time setup)", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
                     }
-                    if (vm.isGoogleConnected) {
-                        Text("Tap below to browse your Google Docs — offline docs are bonus.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                    if (vm.isGoogleConnected && !vm.isSyncing) {
+                        Text(if(vm.driveFiles.isEmpty()) "No chapters yet — tap Search or Create below. Offline docs are bonus." else "Chapters fetched — tap a doc to sync & write. Vault dark, lime only.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                     }
                 }
             }
