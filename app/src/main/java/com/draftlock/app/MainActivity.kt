@@ -613,9 +613,9 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
             }
         }
     }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Surface(color = Color(0xFF0F1410), tonalElevation = 2.dp) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
+        Surface(color = DraftLockColors.panel, tonalElevation = 0.dp, shadowElevation = 1.dp) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(Brush.linearGradient(listOf(DraftLockColors.neonCyan, DraftLockColors.accent))), contentAlignment = Alignment.Center) {
@@ -630,18 +630,19 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
                     FilterChip(selected = logic == "AND", onClick = { vm.setLogic(if (logic == "AND") "OR" else "AND") }, label = { Text(logic, fontWeight = FontWeight.Black) }, colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.accent, selectedLabelColor = Color.Black))
                 }
                 Text("${requirements.size} requirements • ${lockedApps.size} blocked  •  Popup: ${if(vm.blockingAvailable) "Ready" else "Enable Accessibility"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search apps…") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search apps…") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("ALL","BLOCKED","REQUIRED","AVAILABLE").forEach { f ->
-                        FilterChip(selected = filter==f, onClick = { filter = f }, label = { Text(f, style = MaterialTheme.typography.labelSmall) }, colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.panel, selectedLabelColor = Color.White))
+                        FilterChip(selected = filter==f, onClick = { filter = f }, label = { Text(f, style = MaterialTheme.typography.labelSmall) }, colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(selectedContainerColor = if (filter==f) DraftLockColors.panelElevated else DraftLockColors.panel, selectedLabelColor = Color.White, containerColor = DraftLockColors.panel))
                     }
                 }
-                if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = DraftLockColors.accent)
+                if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = DraftLockColors.accent, trackColor = DraftLockColors.line)
                 if (!vm.blockingAvailable) {
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1420)), shape = RoundedCornerShape(10.dp)) {
-                        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Popup blocking off — enable Accessibility for instant block popup.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.neonPink, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Enable", style = MaterialTheme.typography.labelSmall) }
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF24141A)), shape = RoundedCornerShape(12.dp)) {
+                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(painterResource(R.drawable.ic_shield), null, tint = DraftLockColors.neonPink, modifier = Modifier.size(18.dp))
+                            Text("Popup blocking off — enable Accessibility", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.neonPink, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Enable") }
                         }
                     }
                 }
@@ -650,7 +651,7 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = DraftLockColors.accent) }
         } else {
-            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)) {
+            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)) {
                 items(filtered, key = { it.packageName }) { app ->
                     val req = requirements.find { it.packageName == app.packageName }
                     val locked = lockedApps.find { it.packageName == app.packageName }
@@ -772,11 +773,10 @@ private fun DocsScreen(vm: DraftLockViewModel) {
             }
         }) { Text("Save & Connect") } }, dismissButton = { TextButton(onClick = { showClientDialog = false }) { Text("Cancel") } })
     }
-    LazyColumn(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            // PRIMARY GMAIL LINK – always prominent
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0xFF0E1F14) else Color(0xFF15151A)), elevation = CardDefaults.cardElevation(6.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0xFF132016) else Color.White), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(44.dp).clip(CircleShape).background(if(vm.isGoogleConnected) DraftLockColors.accent else Color.White), contentAlignment = Alignment.Center) {
                             Icon(painterResource(R.drawable.ic_google), null, tint = Color.Black, modifier = Modifier.size(22.dp))
