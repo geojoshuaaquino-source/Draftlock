@@ -687,7 +687,7 @@ private fun DocsScreen(vm: DraftLockViewModel) {
     var newLocalTitle by remember { mutableStateOf("") }
     var filterTab by remember { mutableStateOf("CLOUD") }
     var showClientDialog by remember { mutableStateOf(false) }
-    var clientIdInput by remember { mutableStateOf(GoogleOAuthManager(context).getEffectiveClientId().let { if(it.startsWith("YOUR_")) "" else it }) }
+    var clientIdInput by remember { mutableStateOf(GoogleOAuthManager(context).effectiveClientId.let { if(it.startsWith("YOUR_")) "" else it }) }
     LaunchedEffect(Unit) { vm.checkGoogleConnection(); if (vm.isGoogleConnected) vm.fetchDriveFiles() }
     if (showClientDialog) {
         AlertDialog(onDismissRequest = { showClientDialog = false }, title = { Text("Connect Gmail") }, text = {

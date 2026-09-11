@@ -17,7 +17,7 @@ import net.openid.appauth.TokenResponse
 class GoogleOAuthManager(private val context: Context) {
     private val authService = AuthorizationService(context)
     private val store = SecureAuthStore(context)
-    private val effectiveClientId: String get() {
+    val effectiveClientId: String get() {
         val runtime = context.getSharedPreferences("draftlock_runtime", Context.MODE_PRIVATE).getString("runtime_google_client_id", null)
         if (!runtime.isNullOrBlank() && runtime.contains(".apps.googleusercontent.com")) return runtime.trim()
         return BuildConfig.GOOGLE_CLIENT_ID
@@ -31,7 +31,6 @@ class GoogleOAuthManager(private val context: Context) {
     fun setRuntimeClientId(id: String) {
         context.getSharedPreferences("draftlock_runtime", Context.MODE_PRIVATE).edit().putString("runtime_google_client_id", id.trim()).apply()
     }
-    fun getEffectiveClientId(): String = effectiveClientId
 
     fun startAuthorization(onError: (String) -> Unit = {}) {
         if (!isConfigured) {
