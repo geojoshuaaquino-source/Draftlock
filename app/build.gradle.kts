@@ -101,9 +101,10 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     // Free asset libraries — MelonUI is web/React (ItzAmyy/MelonUI, react-melon/melon) with no Android Maven artifact,
     // so its tokens are vendored into Theme.kt (converted for Compose) rather than added as a binary dep.
-    // Compatible free Compose assets:
+    // Compatible free Compose assets (purposeful: icons + images + animation):
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("com.airbnb.android:lottie-compose:6.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("androidx.navigation:navigation-compose:2.9.3")

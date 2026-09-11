@@ -340,22 +340,19 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Structure layers — free assets converted: Inkjet halftone + Melon dense-grid (0px utilitarian) + vault radial
-            // Asset libs: MelonUI tokens vendored (no binary dep) + material-icons-extended + coil-compose; pattern from inkjet/pattern.monster free MIT
+            // Purposeful layers — single subtle halftone + single vault radial (restraint: one memorable accent)
+            // MelonUI dense-grid used sparingly: only on hero, not full-screen jumble
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F), Color(0xFF12121A)))), contentAlignment = Alignment.Center) {
-                // halftone subtle
-                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.22f)
-                // melon dense grid low opacity
-                Image(painterResource(R.drawable.bg_melon_grid), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.14f)
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x18D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(300f, 80f), radius = 900f)))
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x1400CD3C), Color.Transparent), center = androidx.compose.ui.geometry.Offset(100f, 600f), radius = 700f)))
+                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.10f)
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x14D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(300f, 80f), radius = 900f)))
             }
             Scaffold(
                 containerColor = Color.Transparent,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
-                    Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp) {
+                    Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
                         Column {
-                            // Melon structure: sharp top accent (green rationed only on active — here LVL)
+                            // Melon structure: sharp top accent (green rationed only on active — here LVL) — purposeful, single accent
                             Box(Modifier.fillMaxWidth().height(3.dp).background(Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen, DraftLockColors.neonCyan))))
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(DraftLockColors.panelElevated), contentAlignment = Alignment.Center) {
@@ -389,7 +386,8 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                 },
                 floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
                 bottomBar = {
-                    Surface(color = Color(0xFF0F0F14), tonalElevation = 8.dp, shadowElevation = 8.dp) {
+                    // Fix nav bar blocked: respect system navigationBars inset (edge-to-edge)
+                    Surface(color = Color(0xFF0F0F14), tonalElevation = 8.dp, shadowElevation = 8.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
                         Column {
                             Divider(color = DraftLockColors.line, thickness = 1.dp)
                             Row(
@@ -420,10 +418,15 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                     }
                 }
             ) { pad ->
+                // Scaffold pad already includes topBar + bottomBar; navigationBars handled in bars themselves, so content not blocked
                 Box(Modifier.fillMaxSize().padding(pad)) {
                     AnimatedContent(
                         targetState = screen,
-                        transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(110)) },
+                        transitionSpec = {
+                            // Purposeful motion: single slide+fade, not scattered (frontend-design restraint)
+                            (slideInHorizontally(tween(220, easing = EaseOutCubic)) { it / 8 } + fadeIn(tween(180)))
+                                .togetherWith(slideOutHorizontally(tween(180, easing = EaseInCubic)) { -it / 8 } + fadeOut(tween(120)))
+                        },
                         label = "screenTransition"
                     ) { target ->
                         when (target) {
@@ -458,14 +461,13 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            // Hero — structure style: editorial + bento + melon grid (free assets: bg_structure_hero_melon + illustration_vault_melon)
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
+            // Hero — purposeful editorial: single bg + centered vault, Melon green rationed to tiny badge (MelonUI principle)
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panelElevated), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
                 Box(Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(16.dp)).background(DraftLockColors.panelElevated)) {
-                    Image(painterResource(R.drawable.bg_structure_hero_melon), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.95f)
-                    Image(painterResource(R.drawable.illustration_vault_melon), null, modifier = Modifier.size(160.dp).align(Alignment.Center), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
-                    // bento corner tag — MelonUI sharp (0px) token applied to badge
-                    Box(Modifier.align(Alignment.TopEnd).padding(10.dp).clip(RoundedCornerShape(8.dp)).background(DraftLockColors.melonGreen).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                        Text("MELON × VAULT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 0.6.sp)
+                    Image(painterResource(R.drawable.bg_structure_hero_melon), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.92f)
+                    Image(painterResource(R.drawable.illustration_vault_melon), null, modifier = Modifier.size(148.dp).align(Alignment.Center), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                    Box(Modifier.align(Alignment.TopEnd).padding(10.dp).clip(RoundedCornerShape(6.dp)).background(DraftLockColors.melonGreen).padding(horizontal = 7.dp, vertical = 3.dp)) {
+                        Text("MELON × VAULT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 0.6.sp, fontSize = 10.sp)
                     }
                 }
             }
