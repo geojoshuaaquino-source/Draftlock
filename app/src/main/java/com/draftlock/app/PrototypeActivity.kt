@@ -21,7 +21,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -135,8 +137,19 @@ private fun DraftLockPrototype() {
 }
 
 @Composable private fun IconBox(x:Float,y:Float,label:String) {
-    R(x,y,46f,46f)
-    T(label,x,y+14f,46f,size=10f,color=Muted,bold=true,align=TextAlign.Center)
+    val icon = when(label) {
+        "L" -> R.drawable.ic_lock_closed
+        "A" -> R.drawable.ic_write
+        "D" -> R.drawable.ic_docs
+        "H" -> R.drawable.ic_analytics
+        "U" -> R.drawable.ic_usage
+        "B" -> R.drawable.ic_lock_closed
+        "G" -> R.drawable.ic_google
+        else -> R.drawable.ic_home
+    }
+    Box(Modifier.offset(x.dp,y.dp).width(46.dp).height(46.dp).background(Panel), contentAlignment = Alignment.Center) {
+        Image(painter = painterResource(id = icon), contentDescription = label, modifier = Modifier.size(22.dp))
+    }
 }
 
 @Composable private fun Splash(onContinue:()->Unit) {

@@ -1,8 +1,9 @@
 <resources>
-    <style name="Theme.DraftLock" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+    <style name="Theme.DraftLock" parent="android:style/Theme.Material.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#101014</item>
-        <item name="android:navigationBarColor">#101014</item>
+        <item name="android:statusBarColor">@color/draft_bg</item>
+        <item name="android:navigationBarColor">@color/draft_bg</item>
+        <item name="android:windowBackground">@drawable/bg_splash_gradient</item>
     </style>
 </resources>

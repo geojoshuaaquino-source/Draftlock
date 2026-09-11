@@ -59,6 +59,14 @@ class GoogleOAuthManager(private val context: Context) {
     }
 
     fun loadState(): AuthState? = store.read()?.let { AuthState.jsonDeserialize(it) }
+    fun withFreshToken(onToken: (String?) -> Unit, onError: (String) -> Unit = {}) {
+        val state = loadState()
+        if (state == null) { onError("Not connected"); return }
+        state.performActionWithFreshTokens(authService) { accessToken, _, ex ->
+            if (ex != null) onError(ex.errorDescription ?: ex.error ?: "Token refresh failed")
+            else onToken(accessToken)
+        }
+    }
     fun disconnect() = store.clear()
     fun close() = authService.dispose()
 }

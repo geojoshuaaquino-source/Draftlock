@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="launcher_bg">#080808</color>
+    <color name="draft_bg">#080808</color>
+    <color name="draft_panel">#151515</color>
+    <color name="draft_line">#30302D</color>
+    <color name="draft_ink">#F4F4F0</color>
+    <color name="draft_muted">#A0A0A0</color>
+    <color name="draft_accent">#B7FF4A</color>
+    <color name="draft_accent_pressed">#9FE040</color>
+</resources>
