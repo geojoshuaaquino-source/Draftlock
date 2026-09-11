@@ -1,0 +1,4 @@
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
+# 1. Run: ./scripts/setup-oauth.sh    (after gcloud auth login)
+# 2. Or manually: console.cloud.google.com → New Project → Enable Drive + Docs APIs → OAuth consent (External, add test user) → Credentials → Create OAuth client → Web application → Name DraftLock Web → Authorized redirect URIs: com.googleusercontent.apps.<PREFIX>:/oauth2redirect → Copy Client ID here
+# 3. Or paste at runtime: DraftLock → Settings → Advanced Client ID (no rebuild needed)

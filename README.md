@@ -16,13 +16,26 @@ DraftLock is an offline-first Android writing accountability tracker with config
 - Local Room + DataStore persistence.
 - Phased GitHub Actions build with an APK artifact.
 
-## Google OAuth setup
+## Google OAuth setup (Web client — no SHA-1 needed)
 
-Create a Google OAuth client for Android use with the debug/release certificate fingerprints required by the Google project. Put the web client ID in a local `local.properties` entry:
+I can set it up for you, or do it in 2 min:
 
-```properties
-GOOGLE_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
+**Option A — I set it up (you just log in):**
+```bash
+gcloud auth login
+./scripts/setup-oauth.sh          # creates project, enables Drive+Docs, creates Web client
+# or: gh secret set GOOGLE_CLIENT_ID --body "xxx.apps.googleusercontent.com" --repo geojoshuaaquino-source/Draftlock
 ```
+
+**Option B — manual Web client (recommended, less trouble than Android):**
+1. `console.cloud.google.com` → New Project `DraftLock-vault` → Enable `Google Drive API` + `Google Docs API`
+2. `OAuth consent screen` → External → App name `DraftLock` → add `openid email profile drive.file documents` → Test users → add your Gmail
+3. `Credentials → Create OAuth client → Web application` → Name `DraftLock Web`
+   - **Authorized JavaScript origins:** leave **empty**
+   - **Authorized redirect URIs:** **one line:** `com.googleusercontent.apps.<YOUR_PREFIX>:/oauth2redirect` (where `<YOUR_PREFIX>` is before `.apps.googleusercontent.com` in the ID you’ll get)
+4. Copy `Client ID: xxx.apps.googleusercontent.com` → `echo "GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com" > local.properties` (or paste in-app `Settings → Advanced Client ID` → no rebuild, or `Docs → Enter Client ID`)
+
+Build bakes `BuildConfig.GOOGLE_CLIENT_ID` + `manifestPlaceholders appAuthRedirectScheme` (`app/build.gradle.kts:14` `env` > `local.properties` > placeholder, `GoogleOAuthManager.kt:20` runtime pref wins). AppAuth PKCE via `accounts.google.com` requests `openid email profile drive.file documents`.
 
 The app requests the narrow Drive file scope plus Docs access rather than a user's Google password. Google may require OAuth verification for sensitive/restricted scopes before public distribution.
 
