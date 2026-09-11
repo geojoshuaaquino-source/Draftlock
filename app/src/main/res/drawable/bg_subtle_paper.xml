@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="200dp" android:height="200dp" android:viewportWidth="200" android:viewportHeight="200">
+<!-- Obsidian paper texture - subtle dot grid 3% -->
+<path android:fillColor="#F2F0EB" android:pathData="M0,0h200v200h-200z" android:fillAlpha="0.02"/>
+<path android:fillColor="#9AA0A8" android:pathData="M10,10h1v1h-1z M40,10h1v1h-1z M70,10h1v1h-1z M100,10h1v1h-1z M130,10h1v1h-1z M160,10h1v1h-1z M190,10h1v1h-1z M10,40h1v1h-1z M40,40h1v1h-1z M70,40h1v1h-1z M100,40h1v1h-1z M130,40h1v1h-1z M160,40h1v1h-1z M190,40h1v1h-1z M10,70h1v1h-1z M40,70h1v1h-1z M70,70h1v1h-1z M100,70h1v1h-1z M130,70h1v1h-1z M160,70h1v1h-1z M190,70h1v1h-1z" android:fillAlpha="0.07"/>
+<path android:strokeColor="#242430" android:strokeWidth="0.4" android:pathData="M0,30h200 M0,60h200 M0,90h200 M0,120h200 M0,150h200 M0,180h200 M30,0v200 M60,0v200 M90,0v200 M120,0v200 M150,0v200 M180,0v200" android:strokeAlpha="0.04"/>
+</vector>

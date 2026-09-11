@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="400dp" android:height="400dp" android:viewportWidth="400" android:viewportHeight="400">
+<!-- Large faded vault watermark for background -->
+<path android:fillColor="#7C6CFF" android:fillAlpha="0.04" android:pathData="M120,80 L280,80 L280,320 L120,320 Z"/>
+<path android:fillColor="#00000000" android:strokeColor="#7C6CFF" android:strokeWidth="4" android:strokeAlpha="0.05" android:pathData="M140,140 L140,100 C140,70 170,50 200,50 C230,50 260,70 260,100 L260,140"/>
+<path android:fillColor="#D4FF32" android:fillAlpha="0.06" android:pathData="M180,200 A20,20 0,1 0,220,200 A20,20 0,0 0,180,200 Z"/>
+</vector>

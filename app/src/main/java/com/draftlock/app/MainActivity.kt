@@ -71,6 +71,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import com.draftlock.app.ui.theme.DraftLockColors
 import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var oauthManager: GoogleOAuthManager
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         oauthManager = GoogleOAuthManager(this)
         handleOAuthIntent(intent)
         setContent { DraftLockApp() }
@@ -332,29 +334,57 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Ink Vault mesh — lime hero stays quiet, background does work
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F), Color(0xFF12121A)))), contentAlignment = Alignment.TopCenter) {
+            // Obsidian subtle background — vault watermark + paper texture + mesh (not just logos)
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F), Color(0xFF12121A)))), contentAlignment = Alignment.Center) {
+                Image(painter = painterResource(R.drawable.bg_watermark_vault), contentDescription = null, alpha = 0.05f, modifier = Modifier.fillMaxSize())
+                Image(painter = painterResource(R.drawable.bg_subtle_paper), contentDescription = null, alpha = 0.03f, modifier = Modifier.fillMaxSize())
                 Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x12D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(300f, 80f), radius = 900f)))
-                // subtle grid overlay via divider pattern
-                Box(Modifier.fillMaxSize().background(Color.Transparent))
             }
             Scaffold(
                 containerColor = Color.Transparent,
+                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                 topBar = {
                     Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp) {
-                        Column {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Image(painter = painterResource(R.drawable.ic_logo_draftlock), contentDescription = null, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)))
-                                Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text("DRAFTLOCK", style = MaterialTheme.typography.labelMedium, color = Color.White, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black)
-                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"} • ${todayWords} words", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                                 }
                                 Box(Modifier.clip(RoundedCornerShape(20.dp)).background(DraftLockColors.accent).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
                                     Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
                                 }
+                                Text("${todayWords}w", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                             }
-                            Divider(color = DraftLockColors.line, thickness = 1.dp)
+                            // Top TabRow — reworked structure: nav moves from bottom pill to top vault rail
+                            androidx.compose.material3.TabRow(
+                                selectedTabIndex = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS).indexOf(screen).coerceAtLeast(0),
+                                containerColor = Color(0xFF0F0F14),
+                                contentColor = Color.White,
+                                indicator = { tabPositions ->
+                                    if (tabPositions.isNotEmpty()) {
+                                        val idx = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS).indexOf(screen).coerceAtLeast(0)
+                                        androidx.compose.material3.TabRowDefaults.Indicator(
+                                            modifier = Modifier.tabIndicatorOffset(tabPositions[idx]),
+                                            height = 2.dp,
+                                            color = DraftLockColors.accent
+                                        )
+                                    }
+                                },
+                                divider = { Divider(color = DraftLockColors.line, thickness = 1.dp) }
+                            ) {
+                                listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS).forEach { item ->
+                                    androidx.compose.material3.Tab(
+                                        selected = screen == item,
+                                        onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item },
+                                        text = { Text(item.label, style = MaterialTheme.typography.labelSmall, fontWeight = if (screen == item) FontWeight.Bold else FontWeight.Medium) },
+                                        icon = { Icon(painterResource(id = item.iconRes), null, modifier = Modifier.size(18.dp)) },
+                                        selectedContentColor = Color.White,
+                                        unselectedContentColor = DraftLockColors.muted
+                                    )
+                                }
+                            }
                         }
                     }
                 },
@@ -371,41 +401,14 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                         }
                     }
                 },
-                floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
-                bottomBar = {
-                    // New structure: 4 nav items + center FAB gap, 48dp targets, 8dp rhythm, no cut-off insets
-                    Surface(color = Color(0xFF0F0F14), tonalElevation = 8.dp, shadowElevation = 8.dp) {
-                        Column {
-                            Divider(color = DraftLockColors.line, thickness = 1.dp)
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).padding(bottom = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val navItems = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS)
-                                navItems.forEach { item ->
-                                    val selected = screen == item
-                                    Box(
-                                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(14.dp))
-                                            .background(if (selected) Color(0xFF1E1E28) else Color.Transparent)
-                                            .clickable {
-                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                screen = item
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                floatingActionButtonPosition = androidx.compose.material3.FabPosition.End,
+                bottomBar = {} // no bottom nav — reworked to top rail, fixes inset cut-off
             ) { pad ->
-                Box(Modifier.fillMaxSize().padding(pad)) {
+                Box(
+                    Modifier.fillMaxSize()
+                        .padding(pad)
+                        .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+                ) {
                     AnimatedContent(
                         targetState = screen,
                         transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(110)) },
@@ -442,6 +445,12 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item {
+            // Obsidian hero image — subtle background illustration, not just color
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
+                Image(painter = painterResource(R.drawable.illustration_pen_hero), contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)))
+            }
+        }
         item {
             // Hero vault — the one memorable element (frontend-design: spend boldness in one place)
             Card(colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
