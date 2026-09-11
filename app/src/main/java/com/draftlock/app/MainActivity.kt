@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -470,67 +471,63 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
                 }
             }
         }
+        // TRUE PHONE BENTO — not stacked list: 2-col mosaic vault + stats column, Gmail bento, Logic bento
         item {
-            // Hero vault — dark glass bento (phone-adapted, not web copy): translucent + border, single lime accent
-            Card(colors = CardDefaults.cardColors(containerColor = GlassTokens.glassStrong), shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth().padding(1.dp).clip(RoundedCornerShape(18.dp)).background(DraftLockColors.panel, RoundedCornerShape(18.dp))) {
-                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0x121A1A1F), Color(0x0A14141C))), shape = RoundedCornerShape(18.dp)).padding(16.dp)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth().height(176.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Left bento — vault (tall, glassStrong, 18dp) — phone adapted, takes 60% width
+                Card(colors = CardDefaults.cardColors(containerColor = GlassTokens.glassStrong), shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.weight(1.45f).fillMaxHeight()) {
+                    Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(DraftLockColors.accent), contentAlignment = Alignment.Center) {
-                                    Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                                }
-                                Column {
-                                    Text("Writing Goal", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                                    Text("$words / $quota", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color.White)
-                                }
+                            Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(DraftLockColors.accent), contentAlignment = Alignment.Center) {
+                                Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(16.dp))
                             }
-                            Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if (complete) Color(0xFF1A2518) else Color(0xFF2A1A1C)).padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else DraftLockColors.neonPink)
+                            Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if (complete) Color(0xFF1A2518) else Color(0xFF2A1A1C)).padding(horizontal = 8.dp, vertical = 5.dp)) {
+                                Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else DraftLockColors.neonPink, fontSize = 10.sp)
                             }
                         }
-                        Text("$words words inked", style = MaterialTheme.typography.displaySmall, color = Color.White)
-                        Text("Every word counts. Game art, serious tool — no delays.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
-                        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF242430))) {
-                            Box(Modifier.fillMaxWidth(progress).height(8.dp).clip(RoundedCornerShape(8.dp)).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd))))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("$words / $quota", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
+                            Text("$words inked", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                         }
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("${words} today", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF242430))) {
+                                Box(Modifier.fillMaxWidth(progress).height(8.dp).clip(RoundedCornerShape(8.dp)).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd))))
+                            }
                             Text("${(progress*100).toInt()}% to goal", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent)
                         }
-                        Button(
-                            onClick = onWrite,
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black),
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Icon(painterResource(R.drawable.ic_write), null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Continue Writing", fontWeight = FontWeight.Bold) }
+                        Button(onClick = onWrite, modifier = Modifier.fillMaxWidth().height(36.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(12.dp)) { Text("Write", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
                     }
+                }
+                // Right bento column — 2 stacked glass minis (phone bento 0.85 width)
+                Column(Modifier.weight(0.85f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MiniStatCard("Req", "${requirements.size}", R.drawable.ic_rules, DraftLockColors.neonCyan, Modifier.weight(1f).fillMaxWidth())
+                    MiniStatCard("Blocked", "${lockedApps.size}", R.drawable.ic_lock_closed, DraftLockColors.neonPink, Modifier.weight(1f).fillMaxWidth())
                 }
             }
         }
         item {
-            // Gmail — dark glass bento (no white flip, consistent dark)
-            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0x22132A16) else GlassTokens.glassStrong), modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(0.dp)) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(44.dp).clip(CircleShape).background(if (vm.isGoogleConnected) DraftLockColors.accent else Color(0xFF1A1A1E)), contentAlignment = Alignment.Center) {
-                        Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(22.dp))
+            // Gmail bento + Logic bento side-by-side (phone 2-col, not stacked)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0x22132A16) else GlassTokens.glass), modifier = Modifier.weight(1.35f), elevation = CardDefaults.cardElevation(0.dp)) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.size(36.dp).clip(CircleShape).background(if (vm.isGoogleConnected) DraftLockColors.accent else Color(0xFF1A1A1E)), contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(if (vm.isGoogleConnected) "Gmail" else "Connect", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White)
+                            Text(if (vm.isGoogleConnected) "Linked" else "Baked m00s0…", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+                        }
+                        if (vm.isGoogleConnected) TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) { Text("Unlink", fontSize = 11.sp) }
+                        else Button(onClick = { vm.startGoogleAuth(context) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Go", fontSize = 12.sp, fontWeight = FontWeight.Black) }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(if (vm.isGoogleConnected) "Gmail Connected" else "Connect Gmail", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color.White)
-                        Text(if (vm.isGoogleConnected) "Docs sync active" else "Tap Connect — baked ID auto", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
-                        Text(vm.syncStatus, style = MaterialTheme.typography.labelSmall, color = if (vm.isGoogleConnected) DraftLockColors.accent else DraftLockColors.muted)
-                    }
-                    if (vm.isGoogleConnected) TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }) { Text("Unlink") }
-                    else Button(onClick = { vm.startGoogleAuth(context) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(12.dp)) { Text("Connect", fontWeight = FontWeight.Black) }
                 }
-            }
-        }
-        item {
-            // Structure: Bento grid — MelonUI spacing 12dp = base token, vault bento frame
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                MiniStatCard("Requirements", "${requirements.size}", R.drawable.ic_rules, DraftLockColors.neonCyan, Modifier.weight(1f))
-                MiniStatCard("Blocked", "${lockedApps.size}", R.drawable.ic_lock_closed, DraftLockColors.neonPink, Modifier.weight(1f))
-                MiniStatCard("Logic", logic, R.drawable.ic_melon_accent, DraftLockColors.melonGreen, Modifier.weight(1f))
+                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), modifier = Modifier.weight(0.85f), elevation = CardDefaults.cardElevation(0.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(painterResource(R.drawable.ic_melon_accent), null, tint = DraftLockColors.melonGreen, modifier = Modifier.size(18.dp))
+                        Text(logic, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleSmall, color = Color.White)
+                        Text("Logic", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+                    }
+                }
             }
         }
         item { Text("Today’s Requirements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White) }
