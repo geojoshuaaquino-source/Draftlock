@@ -378,7 +378,7 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card(colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), shape = RoundedCornerShape(20.dp), elevation = CardDefaults.cardElevation(8.dp), modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = 1f + animatedProgress * 0.012f; scaleY = 1f + animatedProgress * 0.012f }) {
-                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF1A2E1A), Color(0xFF151515)), shape = RoundedCornerShape(20.dp))).padding(18.dp)) {
+                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF1A2E1A), Color(0xFF151515))), shape = RoundedCornerShape(20.dp)).padding(18.dp)) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -442,8 +442,8 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
         }
     }
 }
-@Composable private fun MiniStatCard(label:String, value:String, icon:Int, tint:Color, mod:Modifier) {
-    Card(mod = mod, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
+@androidx.compose.runtime.Composable private fun MiniStatCard(label:String, value:String, icon:Int, tint:Color, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(18.dp))
             Spacer(Modifier.height(6.dp))
