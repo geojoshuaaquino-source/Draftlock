@@ -499,8 +499,8 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MicroStatCard("REQUIREMENTS", "${requirements.size}", DraftLockColors.neonCyan, R.drawable.ic_rules)
-                MicroStatCard("BLOCKED APPS", "${lockedApps.size}", DraftLockColors.neonPink, R.drawable.ic_lock_closed)
+                MicroStatCard("REQUIREMENTS", "${requirements.size}", DraftLockColors.neonCyan, R.drawable.ic_rules, Modifier.weight(1f))
+                MicroStatCard("BLOCKED APPS", "${lockedApps.size}", DraftLockColors.neonPink, R.drawable.ic_lock_closed, Modifier.weight(1f))
             }
         }
         item {
@@ -611,8 +611,8 @@ private fun VaultStatusCard(words: Int, quota: Int, progress: Float, isUnlocked:
 }
 
 @androidx.compose.runtime.Composable
-private fun MicroStatCard(label: String, value: String, tint: Color, icon: Int) {
-    Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.weight(1f)) {
+private fun MicroStatCard(label: String, value: String, tint: Color, icon: Int, modifier: Modifier = Modifier) {
+    Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glass), elevation = CardDefaults.cardElevation(0.dp), modifier = modifier) {
         Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(36.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                 Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(18.dp))
