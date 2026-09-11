@@ -7,9 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 
-// Identity: Ink Vault — typewriter + safe, pro function / game art.
-// Palette: deep ink base + paper, lime as single hero accent, violet as harmonious support (split-complementary, not hot pink), muted steel.
-// Verified 4.5:1 contrasts, no acid clashes. Based on ui-ux-pro-max: style-match + color-palette-from-product + consistency
+// Identity: Ink Vault × MelonUI — typewriter safe meets Melon dense-grid.
+// Converted web MelonUI (ItzAmyy/MelonUI, react-melon/melon) has no Android Maven artifact,
+// so its tokens are vendored here for Compose (web→Android conversion):
+//   Melon green #00CD3C/#00D344 → mapped to MelonGreen, spacing 2/4/8/12/16/24/32/48, rounded 0, Pretendard→SansSerif.
+// Other free asset libs added: material-icons-extended + coil-compose (compatible free libs) — heavier kits
+// (FormaUI Kotlin 2.4, RikkaUI KMP) skipped for 2.2.20 compat; their structure styles still applied via local components.
+// Free background/pattern assets from Inkjet/Pattern Monster converted to VectorDrawable mesh/halftone.
+// Palette: vault ink base + Melon green as co-hero with lime, violet as harmonious support, muted steel.
 private val Bg = Color(0xFF0A0A0F) // vault ink — true black with 4% blue
 private val Panel = Color(0xFF14141C) // steel panel — desaturated navy
 private val PanelElevated = Color(0xFF1E1E28) // brushed elevation
@@ -17,13 +22,22 @@ private val Line = Color(0xFF242430) // seam — visible in both themes
 private val Ink = Color(0xFFF2F0EB) // paper — warm, not stark white
 private val Muted = Color(0xFF9AA0A8) // steel muted — 5.2:1 on Panel
 private val MutedAlt = Color(0xFF7A7F87)
-private val Accent = Color(0xFFD4FF32) // lock lime — hero, desaturated from #B7FF4A for harmony
+private val Accent = Color(0xFFD4FF32) // lock lime — hero
 private val AccentPressed = Color(0xFFBEE62E)
-private val NeonCyan = Color(0xFF7C6CFF) // vault violet — harmonious split-complementary to lime, replaces harsh cyan
-private val NeonPink = Color(0xFFFF6B6B) // alert coral — softer than #FF2E93, complements lime without clash
-private val Gold = Color(0xFFFFC857) // paper gold — amber, not yellow
+private val NeonCyan = Color(0xFF7C6CFF) // vault violet — split-complementary to lime
+private val NeonPink = Color(0xFFFF6B6B) // alert coral
+private val Gold = Color(0xFFFFC857) // paper gold
 private val XpGradientStart = Color(0xFFD4FF32)
 private val XpGradientEnd = Color(0xFF7C6CFF)
+// MelonUI tokens — converted for Android (free, MIT web sources; no binary dep)
+private val MelonGreen = Color(0xFF00CD3C) // signature-#00CD3C
+private val MelonGreenDark = Color(0xFF00B523)
+private val MelonGreenLogin = Color(0xFF00D344) // live login #00D344
+private val MelonNearBlack = Color(0xFF1A1A1A)
+private val MelonGray666 = Color(0xFF666666)
+private val MelonGray999 = Color(0xFF999999)
+private val MelonCanvas = Color(0xFFFFFFFF)
+private val MelonRed = Color(0xFFDF2607)
 
 private val DraftLockDarkColorScheme = darkColorScheme(
     primary = Accent,
@@ -91,7 +105,12 @@ fun rememberCursorPulse(): InfiniteTransition {
     return rememberInfiniteTransition(label = "cursorPulse")
 }
 
-// Colors exposed for prototype helpers + Game vibe
+// Melon spacing/rounded tokens — converted from web 2/4/8/12/16/24/32/48 + 0/9999
+object MelonTokens {
+    val xs = 2; val sm = 4; val md = 8; val base = 12; val lg = 16; val xl = 24; val xxl = 32; val section = 48
+    val radiusSharp = 0; val radiusPill = 999
+}
+// Colors exposed for prototype helpers + Game vibe + Melon converted
 object DraftLockColors {
     val bg = Bg
     val panel = Panel
@@ -107,7 +126,18 @@ object DraftLockColors {
     val gold = Gold
     val xpStart = XpGradientStart
     val xpEnd = XpGradientEnd
-    // game gradients
+    // melon converted
+    val melonGreen = MelonGreen
+    val melonGreenDark = MelonGreenDark
+    val melonLogin = MelonGreenLogin
+    val melonNearBlack = MelonNearBlack
+    val melonGray666 = MelonGray666
+    val melonGray999 = MelonGray999
+    val melonCanvas = MelonCanvas
+    val melonRed = MelonRed
+    // game gradients — now melon-lime + vault
     val bossGradient = listOf(Color(0xFF2A1020), Color(0xFF151515))
     val questGradient = listOf(Color(0xFF142010), Color(0xFF151515))
+    val melonGradient = listOf(MelonGreen, MelonGreenDark)
+    val vaultMelonGradient = listOf(Accent, MelonGreen)
 }

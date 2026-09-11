@@ -340,22 +340,33 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Subtle vault mesh — safe gradient only (watermark images removed for launch stability, re-add after crash fix verified)
+            // Structure layers — free assets converted: Inkjet halftone + Melon dense-grid (0px utilitarian) + vault radial
+            // Asset libs: MelonUI tokens vendored (no binary dep) + material-icons-extended + coil-compose; pattern from inkjet/pattern.monster free MIT
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F), Color(0xFF12121A)))), contentAlignment = Alignment.Center) {
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x12D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(300f, 80f), radius = 900f)))
+                // halftone subtle
+                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.22f)
+                // melon dense grid low opacity
+                Image(painterResource(R.drawable.bg_melon_grid), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.14f)
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x18D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(300f, 80f), radius = 900f)))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x1400CD3C), Color.Transparent), center = androidx.compose.ui.geometry.Offset(100f, 600f), radius = 700f)))
             }
             Scaffold(
                 containerColor = Color.Transparent,
                 topBar = {
                     Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp) {
                         Column {
+                            // Melon structure: sharp top accent (green rationed only on active — here LVL)
+                            Box(Modifier.fillMaxWidth().height(3.dp).background(Brush.horizontalGradient(listOf(DraftLockColors.accent, DraftLockColors.melonGreen, DraftLockColors.neonCyan))))
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Image(painter = painterResource(R.drawable.ic_logo_draftlock), contentDescription = null, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)))
+                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(DraftLockColors.panelElevated), contentAlignment = Alignment.Center) {
+                                    Image(painter = painterResource(R.drawable.ic_logo_draftlock), null, modifier = Modifier.size(28.dp))
+                                }
                                 Column(Modifier.weight(1f)) {
                                     Text("DRAFTLOCK", style = MaterialTheme.typography.labelMedium, color = Color.White, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black)
-                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                                    Text("Ink Vault × Melon • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                                 }
-                                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(DraftLockColors.accent).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                // melon green for max level, lime otherwise — demonstrates Melon token use
+                                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if ((todayWords/500)+1 >= 3) DraftLockColors.melonGreen else DraftLockColors.accent).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
                                     Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
                                 }
                             }
@@ -447,10 +458,15 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            // Hero illustration — safe: use pen hero with fallback if missing
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panelElevated), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().height(120.dp).background(Brush.linearGradient(listOf(Color(0xFF1E1E28), Color(0xFF14141C))), shape = RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_write), null, tint = DraftLockColors.accent, modifier = Modifier.size(48.dp))
+            // Hero — structure style: editorial + bento + melon grid (free assets: bg_structure_hero_melon + illustration_vault_melon)
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(16.dp)).background(DraftLockColors.panelElevated)) {
+                    Image(painterResource(R.drawable.bg_structure_hero_melon), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.95f)
+                    Image(painterResource(R.drawable.illustration_vault_melon), null, modifier = Modifier.size(160.dp).align(Alignment.Center), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                    // bento corner tag — MelonUI sharp (0px) token applied to badge
+                    Box(Modifier.align(Alignment.TopEnd).padding(10.dp).clip(RoundedCornerShape(8.dp)).background(DraftLockColors.melonGreen).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        Text("MELON × VAULT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 0.6.sp)
+                    }
                 }
             }
         }
@@ -509,10 +525,11 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
             }
         }
         item {
+            // Structure: Bento grid — MelonUI spacing 12dp = base token, vault bento frame
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 MiniStatCard("Requirements", "${requirements.size}", R.drawable.ic_rules, DraftLockColors.neonCyan, Modifier.weight(1f))
                 MiniStatCard("Blocked", "${lockedApps.size}", R.drawable.ic_lock_closed, DraftLockColors.neonPink, Modifier.weight(1f))
-                MiniStatCard("Logic", logic, R.drawable.ic_key, DraftLockColors.gold, Modifier.weight(1f))
+                MiniStatCard("Logic", logic, R.drawable.ic_melon_accent, DraftLockColors.melonGreen, Modifier.weight(1f))
             }
         }
         item { Text("Today’s Requirements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White) }
@@ -550,18 +567,21 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
     }
 }
 @androidx.compose.runtime.Composable private fun MiniStatCard(label:String, value:String, icon:Int, tint:Color, modifier: Modifier = Modifier) {
+    // Bento stat — free structure style: bento elevated + top accent 3dp (Melon rationed green)
     Card(modifier = modifier, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
-        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.background(Brush.horizontalGradient(listOf(tint.copy(alpha=0.18f), Color.Transparent))).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(18.dp))
             Spacer(Modifier.height(6.dp))
-            Text(value, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+            Text(value, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = Color.White)
             Text(label, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
         }
+        Box(Modifier.fillMaxWidth().height(3.dp).background(tint))
     }
 }
 @androidx.compose.runtime.Composable
 private fun RequirementCard(name: String, value: String, complete: Boolean, isMain:Boolean=false) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0xFF142010) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(complete) 4.dp else 1.dp)) {
+    // MelonUI: sharp left accent (green for complete) — dense 12px body structure
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(if(complete) 0.dp else 14.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0xFF142010) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(complete) 4.dp else 1.dp)) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(36.dp).clip(CircleShape).background(if(complete) DraftLockColors.accent else Color(0xFF242424)), contentAlignment = Alignment.Center) {
                 Icon(painterResource(if(complete) R.drawable.ic_trophy else if(isMain) R.drawable.ic_write else R.drawable.ic_analytics), null, tint = if(complete) Color.Black else DraftLockColors.muted, modifier = Modifier.size(18.dp))
@@ -656,13 +676,14 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
                             Text("${allApps.size} installed", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                         }
                     }
-                    FilterChip(selected = logic == "AND", onClick = { vm.setLogic(if (logic == "AND") "OR" else "AND") }, label = { Text(logic, fontWeight = FontWeight.Black) }, colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.accent, selectedLabelColor = Color.Black))
+                    FilterChip(selected = logic == "AND", onClick = { vm.setLogic(if (logic == "AND") "OR" else "AND") }, label = { Text(logic, fontWeight = FontWeight.Black) }, colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.melonGreen, selectedLabelColor = Color.Black), shape = RoundedCornerShape(0.dp))
                 }
                 Text("${requirements.size} requirements • ${lockedApps.size} blocked  •  Popup: ${if(vm.blockingAvailable) "Ready" else "Enable Accessibility"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                 OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search apps…") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("ALL","BLOCKED","REQUIRED","AVAILABLE").forEach { f ->
-                        FilterChip(selected = filter==f, onClick = { filter = f }, label = { Text(f, style = MaterialTheme.typography.labelSmall) }, colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(selectedContainerColor = if (filter==f) DraftLockColors.panelElevated else DraftLockColors.panel, selectedLabelColor = Color.White, containerColor = DraftLockColors.panel))
+                        // MelonUI: sharp 0px corners for dense utilitarian control (converted)
+                        FilterChip(selected = filter==f, onClick = { filter = f }, label = { Text(f, style = MaterialTheme.typography.labelSmall) }, shape = RoundedCornerShape(0.dp), colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(selectedContainerColor = if (filter==f) DraftLockColors.melonGreen else DraftLockColors.panel, selectedLabelColor = if (filter==f) Color.Black else Color.White, containerColor = DraftLockColors.panel))
                     }
                 }
                 if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = DraftLockColors.accent, trackColor = DraftLockColors.line)
@@ -726,7 +747,8 @@ private fun UnifiedAppRow(app: SimpleApp, req: AppRequirement?, locked: LockedAp
         }
     }
     val isBoss = locked != null
-    Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if(isBoss) Color(0xFF1E1218) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(isBoss) 6.dp else 2.dp), modifier = Modifier.fillMaxWidth()) {
+    // Structure: Melon dense-row — sharp left accent (Melon green / neonPink) + 0px detail strip
+    Card(shape = RoundedCornerShape(if(isBoss) 0.dp else 14.dp), colors = CardDefaults.cardColors(containerColor = if(isBoss) Color(0xFF1E1218) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(isBoss) 6.dp else 2.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 if (iconBmp != null) {

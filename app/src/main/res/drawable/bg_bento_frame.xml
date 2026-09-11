@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="120dp" android:height="120dp" android:viewportWidth="120" android:viewportHeight="120">
+<!-- Structure style: Bento grid frame — free asset, 16dp rounded, 1.2px seam, inner highlight (ui-ux-pro-max bento) -->
+<path android:fillColor="#14141C" android:strokeColor="#242430" android:strokeWidth="1.2" android:pathData="M12,12 h96 a8,8 0,0 1,8 8 v80 a8,8 0,0 1,-8 8 h-96 a8,8 0,0 1,-8 -8 v-80 a8,8 0,0 1,8 -8z"/>
+<path android:fillColor="#FFFFFF" android:pathData="M12,12 h96 a8,8 0,0 1,8 8 v14 h-112 v-14 a8,8 0,0 1,8 -8z" android:alpha="0.04"/>
+<path android:fillColor="#D4FF32" android:pathData="M20,20h32v2h-32z" android:alpha="0.9"/>
+</vector>

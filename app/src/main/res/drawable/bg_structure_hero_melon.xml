@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="360dp" android:height="120dp" android:viewportWidth="360" android:viewportHeight="120">
+<!-- Structure hero — editorial left-rule + bento highlight + melon green rationed (MelonUI principle: green only on active) -->
+<path android:fillColor="#14141C" android:pathData="M0,0h360v120h-360z"/>
+<path android:fillColor="#1E1E28" android:pathData="M0,0h360v1h-360z M0,30h360v0.7h-360z M0,60h360v0.7h-360z M0,90h360v0.7h-360z M90,0v120 M180,0v120 M270,0v120" android:alpha="0.32"/>
+<path android:fillColor="#D4FF32" android:pathData="M0,0h6v120h-6z"/>
+<path android:fillColor="#00CD3C" android:pathData="M6,0h4v120h-4z" android:alpha="0.95"/>
+<path android:fillColor="#FFFFFF" android:pathData="M0,0h360v14h-360z" android:alpha="0.04"/>
+</vector>

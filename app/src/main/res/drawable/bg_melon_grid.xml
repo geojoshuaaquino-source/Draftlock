@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="120dp" android:height="120dp" android:viewportWidth="120" android:viewportHeight="120">
+<!-- MelonUI dense-grid converted for Android dark: 0px corners, 24dp cell, 1px seam #1C1C28 on vault #0A0A0F (structure style: utilitarian dense) -->
+<path android:fillColor="#0A0A0F" android:pathData="M0,0h120v120h-120z"/>
+<path android:fillColor="#00000000" android:strokeColor="#1C1C28" android:strokeWidth="0.7" android:pathData="M0,24h120 M0,48h120 M0,72h120 M0,96h120 M24,0v120 M48,0v120 M72,0v120 M96,0v120"/>
+<path android:fillColor="#00CD3C" android:pathData="M0,0h2v2h-2z M24,24h2v2h-2z M48,48h2v2h-2z" android:alpha="0.35"/>
+</vector>

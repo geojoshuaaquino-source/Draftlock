@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="120dp" android:height="120dp" android:viewportWidth="120" android:viewportHeight="120">
+<!-- Free generative halftone pattern — Inkjet/Pattern Monster inspired, converted to Android Vector (free MIT) — subtle vault dots -->
+<path android:fillColor="#0A0A0F" android:pathData="M0,0h120v120h-120z"/>
+<!-- halftone dots 10dp pitch, varied radius -->
+<path android:fillColor="#1E1E28" android:pathData="M12,12a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M36,12a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z M60,12a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M84,12a2.2,2.2 0,1 0,4.4 0a2.2,2.2 0,0 0,-4.4 0z M108,12a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z
+M12,36a2.2,2.2 0,1 0,4.4 0a2.2,2.2 0,0 0,-4.4 0z M36,36a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M60,36a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z M84,36a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M108,36a2.2,2.2 0,1 0,4.4 0a2.2,2.2 0,0 0,-4.4 0z
+M12,60a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M36,60a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z M60,60a3.2,3.2 0,1 0,6.4 0a3.2,3.2 0,0 0,-6.4 0z M84,60a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z M108,60a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z
+M12,84a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z M36,84a2.2,2.2 0,1 0,4.4 0a2.2,2.2 0,0 0,-4.4 0z M60,84a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z M84,84a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M108,84a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z
+M12,108a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M36,108a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z M60,108a2.2,2.2 0,1 0,4.4 0a2.2,2.2 0,0 0,-4.4 0z M84,108a2.5,2.5 0,1 0,5 0a2.5,2.5 0,0 0,-5 0z M108,108a3,3 0,1 0,6 0a3,3 0,0 0,-6 0z" android:alpha="0.9"/>
+<path android:fillColor="#00CD3C" android:pathData="M58,58a2.8,2.8 0,1 0,5.6 0a2.8,2.8 0,0 0,-5.6 0z" android:alpha="0.18"/>
+</vector>
