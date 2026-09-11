@@ -106,7 +106,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var oauthManager: GoogleOAuthManager
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        // WindowCompat edge-to-edge removed for launch stability — insets handled via Scaffold padding + 96dp content bottom
+        try { WindowCompat.setDecorFitsSystemWindows(window, false) } catch (_: Exception) {}
         oauthManager = GoogleOAuthManager(this)
         handleOAuthIntent(intent)
         setContent { DraftLockApp() }
@@ -347,10 +348,9 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
             }
             Scaffold(
                 containerColor = Color.Transparent,
-                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                 topBar = {
                     Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp) {
-                        Column(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+                        Column {
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Image(painter = painterResource(R.drawable.ic_logo_draftlock), contentDescription = null, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)))
                                 Column(Modifier.weight(1f)) {
@@ -360,36 +360,8 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                                 Box(Modifier.clip(RoundedCornerShape(20.dp)).background(DraftLockColors.accent).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
                                     Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
                                 }
-                                Text("${todayWords}w", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                             }
-                            // Top TabRow — reworked structure: nav moves from bottom pill to top vault rail
-                            androidx.compose.material3.TabRow(
-                                selectedTabIndex = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS).indexOf(screen).coerceAtLeast(0),
-                                containerColor = Color(0xFF0F0F14),
-                                contentColor = Color.White,
-                                indicator = { tabPositions ->
-                                    if (tabPositions.isNotEmpty()) {
-                                        val idx = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS).indexOf(screen).coerceAtLeast(0)
-                                        androidx.compose.material3.TabRowDefaults.Indicator(
-                                            modifier = Modifier.tabIndicatorOffset(tabPositions[idx]),
-                                            height = 2.dp,
-                                            color = DraftLockColors.accent
-                                        )
-                                    }
-                                },
-                                divider = { Divider(color = DraftLockColors.line, thickness = 1.dp) }
-                            ) {
-                                listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS).forEach { item ->
-                                    androidx.compose.material3.Tab(
-                                        selected = screen == item,
-                                        onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item },
-                                        text = { Text(item.label, style = MaterialTheme.typography.labelSmall, fontWeight = if (screen == item) FontWeight.Bold else FontWeight.Medium) },
-                                        icon = { Icon(painterResource(id = item.iconRes), null, modifier = Modifier.size(18.dp)) },
-                                        selectedContentColor = Color.White,
-                                        unselectedContentColor = DraftLockColors.muted
-                                    )
-                                }
-                            }
+                            Divider(color = DraftLockColors.line, thickness = 1.dp)
                         }
                     }
                 },
@@ -406,14 +378,40 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                         }
                     }
                 },
-                floatingActionButtonPosition = androidx.compose.material3.FabPosition.End,
-                bottomBar = {} // no bottom nav — reworked to top rail, fixes inset cut-off
+                floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
+                bottomBar = {
+                    Surface(color = Color(0xFF0F0F14), tonalElevation = 8.dp, shadowElevation = 8.dp) {
+                        Column {
+                            Divider(color = DraftLockColors.line, thickness = 1.dp)
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).padding(bottom = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val navItems = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS)
+                                navItems.forEach { item ->
+                                    val selected = screen == item
+                                    Box(
+                                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(14.dp))
+                                            .background(if (selected) Color(0xFF1E1E28) else Color.Transparent)
+                                            .clickable {
+                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                screen = item
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
+                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             ) { pad ->
-                Box(
-                    Modifier.fillMaxSize()
-                        .padding(pad)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                ) {
+                Box(Modifier.fillMaxSize().padding(pad)) {
                     AnimatedContent(
                         targetState = screen,
                         transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(110)) },
