@@ -6,8 +6,8 @@ import androidx.room.Room;
 import androidx.room.RoomDatabase;
 
 @Database(
-        entities = {AppRequirement.class, LockedApp.class, DailyRecord.class},
-        version = 1,
+        entities = {AppRequirement.class, LockedApp.class, DailyRecord.class, LocalDocument.class},
+        version = 2,
         exportSchema = false
 )
 public abstract class DraftLockDatabase extends RoomDatabase {
@@ -27,7 +27,7 @@ public abstract class DraftLockDatabase extends RoomDatabase {
                         context.getApplicationContext(),
                         DraftLockDatabase.class,
                         "draftlock.db"
-                ).build();
+                ).fallbackToDestructiveMigration().build();
                 INSTANCE = instance;
             }
             return instance;

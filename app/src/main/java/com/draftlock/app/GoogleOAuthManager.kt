@@ -21,10 +21,18 @@ class GoogleOAuthManager(private val context: Context) {
     private val driveScope = "https://www.googleapis.com/auth/drive.file"
     private val docsScope = "https://www.googleapis.com/auth/documents"
 
-    fun startAuthorization() {
-        require(!BuildConfig.GOOGLE_CLIENT_ID.startsWith("YOUR_")) { "Configure GOOGLE_CLIENT_ID in local.properties first." }
+    val isConfigured: Boolean get() = !BuildConfig.GOOGLE_CLIENT_ID.startsWith("YOUR_") && BuildConfig.GOOGLE_CLIENT_ID.contains(".apps.googleusercontent.com")
+
+    fun startAuthorization(onError: (String) -> Unit = {}) {
+        if (!isConfigured) {
+            onError("Google not configured. Add GOOGLE_CLIENT_ID to local.properties (see README) — local mode still works.")
+            return
+        }
         AuthorizationServiceConfiguration.fetchFromIssuer(Uri.parse("https://accounts.google.com")) { configuration, ex ->
-            if (configuration == null) throw IllegalStateException(ex?.message ?: "Google authorization configuration unavailable")
+            if (configuration == null) {
+                onError(ex?.errorDescription ?: ex?.error ?: "Google authorization configuration unavailable")
+                return@fetchFromIssuer
+            }
             val request = AuthorizationRequest.Builder(
                 configuration,
                 BuildConfig.GOOGLE_CLIENT_ID,
@@ -34,7 +42,7 @@ class GoogleOAuthManager(private val context: Context) {
             val completionIntent = TaskStackBuilder.create(context)
                 .addNextIntentWithParentStack(Intent(context, MainActivity::class.java))
                 .getPendingIntent(70, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                ?: error("Unable to create OAuth completion PendingIntent")
+                ?: run { onError("Unable to create OAuth PendingIntent"); return@fetchFromIssuer }
             authService.performAuthorizationRequest(request, completionIntent)
         }
     }

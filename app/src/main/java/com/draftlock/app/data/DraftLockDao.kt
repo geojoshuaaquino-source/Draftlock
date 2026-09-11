@@ -34,4 +34,16 @@ interface DraftLockDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDay(record: DailyRecord)
+
+    @Query("SELECT * FROM local_documents ORDER BY updatedAt DESC")
+    fun observeLocalDocs(): kotlinx.coroutines.flow.Flow<List<LocalDocument>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertLocalDoc(doc: LocalDocument): Long
+
+    @Query("DELETE FROM local_documents WHERE id = :id")
+    suspend fun deleteLocalDoc(id: Long)
+
+    @Query("SELECT * FROM local_documents WHERE id = :id LIMIT 1")
+    suspend fun getLocalDoc(id: Long): LocalDocument?
 }
