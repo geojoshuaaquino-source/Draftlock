@@ -3,10 +3,8 @@ package com.draftlock.app
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
@@ -69,7 +67,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.draftlock.app.ui.theme.DraftLockColors
 import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
@@ -593,14 +590,14 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
     var filter by remember { mutableStateOf("ALL") }
     var isLoading by remember { mutableStateOf(true) }
     val pm = context.packageManager
-    var allApps by remember { mutableStateOf<List<AppWithIcon>>(emptyList()) }
+    var allApps by remember { mutableStateOf<List<SimpleApp>>(emptyList()) }
     LaunchedEffect(context) {
         isLoading = true
         withContext(Dispatchers.IO) {
             val list = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PackageManager.MATCH_ALL)
                 .map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }
                 .filter { it.packageName != context.packageName }
-                .map { info -> AppWithIcon(info.packageName, pm.getApplicationLabel(info).toString(), pm.getApplicationIcon(info.packageName)) }
+                .map { info -> SimpleApp(info.packageName, pm.getApplicationLabel(info).toString()) }
                 .sortedBy { it.label.lowercase() }
             withContext(Dispatchers.Main) { allApps = list; isLoading = false }
         }
@@ -675,14 +672,16 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
     }
 }
 
-private data class AppWithIcon(val packageName: String, val label: String, val icon: Drawable)
+private data class SimpleApp(val packageName: String, val label: String)
 
-@Composable private fun AppIcon(icon: Drawable, mod: Modifier) {
-    AndroidView(factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageDrawable(icon); clipToOutline = true } }, modifier = mod.clip(CircleShape), update = { it.setImageDrawable(icon) })
+@Composable private fun AppIcon(label: String, mod: Modifier) {
+    Box(mod.clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+        Text(label.take(1).uppercase(), fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimaryContainer)
+    }
 }
 
 @androidx.compose.runtime.Composable
-private fun UnifiedAppRow(app: AppWithIcon, req: AppRequirement?, locked: LockedApp?, minutes: Int, vm: DraftLockViewModel) {
+private fun UnifiedAppRow(app: SimpleApp, req: AppRequirement?, locked: LockedApp?, minutes: Int, vm: DraftLockViewModel) {
     var showMinutes by remember { mutableStateOf(false) }
     var minutesVal by remember(req?.requiredMinutes ?: 30) { mutableStateOf(req?.requiredMinutes?.toFloat() ?: 30f) }
     val isBoss = locked != null
@@ -694,7 +693,7 @@ private fun UnifiedAppRow(app: AppWithIcon, req: AppRequirement?, locked: Locked
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                AppIcon(app.icon, Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF1A1A1A)))
+                AppIcon(app.label, Modifier.size(44.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
