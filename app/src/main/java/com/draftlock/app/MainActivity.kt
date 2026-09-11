@@ -93,6 +93,7 @@ import com.draftlock.app.data.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -173,9 +174,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var isSyncing by mutableStateOf(false)
     var isGoogleConnected by mutableStateOf(try { GoogleOAuthManager(getApplication()).isConnected() } catch (_: Exception) { false })
     private var lastTextWordCount = 0
-    init { viewModelScope.launch { lastTextWordCount = countWords(text.first()) } }
-
     init {
+        viewModelScope.launch { lastTextWordCount = countWords(text.first()) }
         viewModelScope.launch {
             val dayKey = UsageTracker.periodStartMillis(resetMinutes.value).toString()
             val todayKey = store.todayKey.stateIn(viewModelScope, SharingStarted.Eagerly, "").value
