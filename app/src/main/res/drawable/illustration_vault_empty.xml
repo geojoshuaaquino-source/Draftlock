@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="160dp" android:height="120dp" android:viewportWidth="160" android:viewportHeight="120">
+<!-- paper stack -->
+<path android:fillColor="#1E1E28" android:pathData="M40,30 L120,30 L120,90 L40,90 Z" android:strokeColor="#242430" android:strokeWidth="1.2"/>
+<path android:fillColor="#F2F0EB" android:pathData="M48,38 L112,38 L112,82 L48,82 Z"/>
+<path android:fillColor="#242430" android:pathData="M56,50 H104 M56,58 H104 M56,66 H84" android:strokeColor="#242430" android:strokeWidth="1"/>
+<!-- lock badge -->
+<path android:fillColor="#D4FF32" android:pathData="M72,74 L88,74 L88,88 L72,88 Z" android:strokeColor="#0A0A0F" android:strokeWidth="1"/>
+<path android:fillColor="#00000000" android:strokeColor="#D4FF32" android:strokeWidth="1.6" android:pathData="M76,74 L76,68 C76,64 80,62 80,62 C80,62 84,64 84,68 L84,74"/>
+</vector>

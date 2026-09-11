@@ -3,18 +3,15 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Background -->
-    <path android:fillColor="#080808" android:pathData="M0,0h108v108h-108z"/>
-    <!-- Accent border frame -->
-    <path android:strokeColor="#B7FF4A" android:strokeWidth="2" android:pathData="M8,8 L100,8 L100,100 L8,100 Z"/>
-    <path android:fillColor="#151515" android:pathData="M12,12h84v84h-84z"/>
-    <!-- Lock body -->
-    <path android:fillColor="#F4F4F0" android:pathData="M42,48 L66,48 L66,72 C66,74 64,76 62,76 L46,76 C44,76 42,74 42,72 Z"/>
-    <!-- Shackle -->
-    <path android:strokeColor="#F4F4F0" android:strokeWidth="4" android:strokeLineCap="round" android:pathData="M48,48 C48,38 60,38 60,48"/>
-    <!-- Keyhole -->
-    <path android:fillColor="#080808" android:pathData="M54,58m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
-    <path android:fillColor="#080808" android:pathData="M52,62 L56,62 L55,68 L53,68 Z"/>
-    <!-- Accent dot -->
-    <path android:fillColor="#B7FF4A" android:pathData="M76,26m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <!-- Vault ink -->
+    <path android:fillColor="#0A0A0F" android:pathData="M0,0h108v108h-108z"/>
+    <!-- Mesh lime glow -->
+    <path android:fillColor="#D4FF32" android:pathData="M0,0 L108,0 L108,40 L0,40 Z" android:fillAlpha="0.06"/>
+    <!-- Steel frame -->
+    <path android:fillColor="#14141C" android:pathData="M10,10h88v88h-88z" android:strokeColor="#242430" android:strokeWidth="1.2"/>
+    <!-- Pen nib + lock -->
+    <path android:fillColor="#F2F0EB" android:pathData="M54,36 L62,48 L54,62 L46,48 Z"/>
+    <path android:fillColor="#0A0A0F" android:pathData="M53,62 L55,62 L55,68 L53,68 Z"/>
+    <path android:fillColor="#00000000" android:strokeColor="#D4FF32" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M42,52 L42,38 C42,30 48,24 54,24 C60,24 66,30 66,38 L66,52"/>
+    <path android:fillColor="#D4FF32" android:pathData="M50,70 A4,4 0,1 0,58,70 A4,4 0,0 0,50,70 Z"/>
 </vector>

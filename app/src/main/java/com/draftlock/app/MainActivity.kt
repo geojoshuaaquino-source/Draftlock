@@ -221,27 +221,20 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     }
 
     private fun loadGoogleState() = try { GoogleOAuthManager(getApplication()).loadState() } catch (_: Exception) { null }
-    private fun isDemoConnected() = try { GoogleOAuthManager(getApplication()).isDemoConnected() } catch (_: Exception) { false }
     var isGoogleConfigured by mutableStateOf(GoogleOAuthManager(getApplication()).isConfigured)
     fun checkGoogleConnection() {
         val mgr = GoogleOAuthManager(getApplication())
         isGoogleConfigured = mgr.isConfigured
         isGoogleConnected = mgr.isConnected()
         syncStatus = when {
-            mgr.isDemoConnected() -> "Demo Gmail linked — Drive sync needs real Client ID (Settings)"
             isGoogleConnected -> "Gmail linked • Drive ready"
-            !isGoogleConfigured -> "Local vault • Connect Gmail for Drive"
-            else -> "Tap Connect Gmail"
+            !isGoogleConfigured -> "Connect Gmail — add Client ID in Settings"
+            else -> "Tap Connect Gmail to link Drive"
         }
     }
     fun startGoogleAuth(context: Context) {
         val mgr = GoogleOAuthManager(context)
-        if (!mgr.isConfigured) { saveGoogleStatus("Add Client ID in Settings → Gmail"); return }
-        if (mgr.isDemoId()) {
-            mgr.startAuthorization { msg -> saveGoogleStatus(msg); checkGoogleConnection() }
-            checkGoogleConnection()
-            return
-        }
+        if (!mgr.isConfigured) { saveGoogleStatus("No Client ID — add GOOGLE_CLIENT_ID in local.properties or Settings → Gmail"); return }
         mgr.startAuthorization { err -> saveGoogleStatus(err) }
         saveGoogleStatus("Opening Google sign-in…")
     }
@@ -351,42 +344,59 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                     Surface(color = Color(0xFF0F0F14), tonalElevation = 0.dp, shadowElevation = 2.dp) {
                         Column {
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                // real logo asset, not generic shield
                                 Image(painter = painterResource(R.drawable.ic_logo_draftlock), contentDescription = null, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)))
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text("DRAFTLOCK", style = MaterialTheme.typography.labelMedium, color = Color.White, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black)
-                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"} • ${todayWords} words", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                                 }
                                 Box(Modifier.clip(RoundedCornerShape(20.dp)).background(DraftLockColors.accent).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
                                     Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
                                 }
-                                Spacer(Modifier.width(8.dp))
-                                TextButton(onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); context.startActivity(Intent(context, PrototypeActivity::class.java)) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Prototype", style = MaterialTheme.typography.labelSmall) }
                             }
                             Divider(color = DraftLockColors.line, thickness = 1.dp)
                         }
                     }
                 },
+                floatingActionButton = {
+                    if (screen != Screen.WRITE) {
+                        androidx.compose.material3.FloatingActionButton(
+                            onClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); screen = Screen.WRITE },
+                            containerColor = DraftLockColors.accent,
+                            contentColor = Color.Black,
+                            shape = CircleShape,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(painterResource(R.drawable.ic_write), null, modifier = Modifier.size(24.dp))
+                        }
+                    }
+                },
+                floatingActionButtonPosition = androidx.compose.material3.FabPosition.Center,
                 bottomBar = {
-                    // 48dp touch target, 8dp gaps, pill — meets ui-ux-pro-max touch-target-size
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF15151C), shadowElevation = 12.dp, tonalElevation = 0.dp, modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Screen.values().forEach { item ->
+                    // New structure: 4 nav items + center FAB gap, 48dp targets, 8dp rhythm, no cut-off insets
+                    Surface(color = Color(0xFF0F0F14), tonalElevation = 8.dp, shadowElevation = 8.dp) {
+                        Column {
+                            Divider(color = DraftLockColors.line, thickness = 1.dp)
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).padding(bottom = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val navItems = listOf(Screen.HOME, Screen.APPS, Screen.DOCS, Screen.SETTINGS)
+                                navItems.forEach { item ->
                                     val selected = screen == item
                                     Box(
-                                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(20.dp))
-                                            .background(if (selected) DraftLockColors.accent else Color.Transparent)
+                                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(14.dp))
+                                            .background(if (selected) Color(0xFF1E1E28) else Color.Transparent)
                                             .clickable {
                                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 screen = item
-                                            }
-                                            .padding(horizontal = 4.dp), contentAlignment = Alignment.Center
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) Color.Black else DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.Black else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
+                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
                                         }
                                     }
                                 }
@@ -427,8 +437,11 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: List<AppRequirement>, lockedApps: List<LockedApp>, logic: String, context: Context, onWrite: () -> Unit, onOverride: () -> Unit) {
     val complete = vm.allConditionsComplete()
     val progress = (words.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-    // 8dp rhythm: outer 16, section 24, card 16, gap 12/8
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         item {
             // Hero vault — the one memorable element (frontend-design: spend boldness in one place)
             Card(colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
@@ -496,10 +509,11 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
             RequirementCard(req.displayName, "${vm.usageMinutes[req.packageName] ?: 0} / ${req.requiredMinutes} min", (vm.usageMinutes[req.packageName] ?: 0) >= req.requiredMinutes)
         }
         if (requirements.isEmpty()) item {
-            Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panelElevated)) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(painterResource(R.drawable.ic_write), null, tint = DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                    Text("No requirements — add apps in Apps tab.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
+                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Image(painterResource(R.drawable.illustration_vault_empty), null, modifier = Modifier.size(120.dp).clip(RoundedCornerShape(12.dp)))
+                    Text("No requirements yet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Add apps in Apps tab to require usage time before unlock.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
                 }
             }
         }
@@ -553,7 +567,10 @@ private fun RequirementCard(name: String, value: String, complete: Boolean, isMa
 private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
     var draft by remember(text) { mutableStateOf(text) }
     val progress = (words.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp).padding(bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         // vault paper header — pro tool, game accent only on progress
         Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -649,16 +666,30 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
             }
         }
         if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = DraftLockColors.accent) }
+            Box(Modifier.fillMaxSize().padding(bottom = 80.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = DraftLockColors.accent) }
         } else {
-            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp)
+            ) {
                 items(filtered, key = { it.packageName }) { app ->
                     val req = requirements.find { it.packageName == app.packageName }
                     val locked = lockedApps.find { it.packageName == app.packageName }
                     val minutes = vm.usageMinutes[app.packageName] ?: 0
                     UnifiedAppRow(app, req, locked, minutes, vm)
                 }
-                if (filtered.isEmpty()) { item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Text("No apps match.", color = DraftLockColors.muted) } } }
+                if (filtered.isEmpty()) {
+                    item {
+                        Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Image(painterResource(R.drawable.illustration_apps_empty), null, modifier = Modifier.size(120.dp))
+                                Text("No apps found", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Try a different search or filter.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -773,7 +804,11 @@ private fun DocsScreen(vm: DraftLockViewModel) {
             }
         }) { Text("Save & Connect") } }, dismissButton = { TextButton(onClick = { showClientDialog = false }) { Text("Cancel") } })
     }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         item {
             Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0xFF132016) else Color.White), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -814,7 +849,15 @@ private fun DocsScreen(vm: DraftLockViewModel) {
                     Button(onClick = { if(newLocalTitle.isNotBlank()) { vm.createLocalDoc(newLocalTitle); newLocalTitle="" } }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.panelElevated, contentColor = Color.White)) { Text("Create") }
                 }
             }
-            if (localDocs.isEmpty()) item { Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No local docs — create a bonus doc above. Gmail sync is primary.", color = DraftLockColors.muted, style = MaterialTheme.typography.bodySmall) } } }
+            if (localDocs.isEmpty()) item {
+                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
+                    Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Image(painterResource(R.drawable.illustration_vault_empty), null, modifier = Modifier.size(100.dp))
+                        Text("No local docs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Create a bonus doc above. Gmail sync is primary.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                    }
+                }
+            }
             items(localDocs) { doc ->
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
                     var editing by remember { mutableStateOf(false) }
@@ -884,7 +927,11 @@ private fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int
     var quotaText by remember(quota) { mutableStateOf(quota.toString()) }
     var resetText by remember(resetMinutes) { mutableStateOf(resetMinutes.toString()) }
     var clientIdText by remember { mutableStateOf(GoogleOAuthManager(context).effectiveClientId.let { if (it.startsWith("YOUR_") || it.startsWith("987654")) "" else it }) }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         item {
             Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

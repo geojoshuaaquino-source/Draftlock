@@ -32,19 +32,9 @@ class GoogleOAuthManager(private val context: Context) {
         context.getSharedPreferences("draftlock_runtime", Context.MODE_PRIVATE).edit().putString("runtime_google_client_id", id.trim()).apply()
     }
 
-    fun isDemoId(): Boolean = effectiveClientId.startsWith("987654") || effectiveClientId.contains("demo")
-
     fun startAuthorization(onError: (String) -> Unit = {}) {
         if (!isConfigured) {
-            onError("Google not configured. Add GOOGLE_CLIENT_ID to local.properties (see README) — local mode still works.")
-            return
-        }
-        // Demo baked ID — no Cloud project registered, so simulate normal Gmail login locally
-        if (isDemoId()) {
-            // mock “normal” flow: store demo token so UI shows Gmail Connected without network
-            val demoJson = """{"demo":true,"email":"demo@gmail.com","ts":${System.currentTimeMillis()}}"""
-            store.save(demoJson)
-            onError("Demo Gmail linked — replace demo Client ID with real OAuth client for Drive sync. Local vault fully functional.")
+            onError("Add GOOGLE_CLIENT_ID to local.properties or set via Settings → Gmail. Get it from Google Cloud Console → Credentials → OAuth client Web.")
             return
         }
         AuthorizationServiceConfiguration.fetchFromIssuer(Uri.parse("https://accounts.google.com")) { configuration, ex ->
@@ -86,11 +76,8 @@ class GoogleOAuthManager(private val context: Context) {
     }
 
     fun loadState(): AuthState? = store.read()?.let {
-        if (it.contains("\"demo\"")) return null // demo handled via isDemoConnected, not AuthState
         try { AuthState.jsonDeserialize(it) } catch (_: Exception) { null }
     }
-    fun isDemoConnected(): Boolean = store.read()?.contains("\"demo\"") == true
-    fun demoEmail(): String? = store.read()?.let { Regex(""""email":"([^"]+)"""").find(it)?.groupValues?.get(1) }
     fun withFreshToken(onToken: (String?) -> Unit, onError: (String) -> Unit = {}) {
         val state = loadState()
         if (state == null) { onError("Not connected"); return }
@@ -99,7 +86,7 @@ class GoogleOAuthManager(private val context: Context) {
             else onToken(accessToken)
         }
     }
-    fun isConnected(): Boolean = loadState() != null || isDemoConnected()
+    fun isConnected(): Boolean = loadState() != null
     fun disconnect() = store.clear()
     fun close() = authService.dispose()
 }
