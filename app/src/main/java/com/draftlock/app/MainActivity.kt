@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,8 +25,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,9 +46,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -178,24 +187,58 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
     val documentName by vm.documentName.collectAsStateWithLifecycle()
     val googleAutoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showOverride by remember { mutableStateOf(false) }
 
     LaunchedEffect(requirements) { vm.refreshUsage() }
     LaunchedEffect(Unit) { while (true) { delay(30_000); vm.refreshUsage() } }
 
-    MaterialTheme {
+    DraftLockTheme {
         Scaffold(
-            topBar = { TopAppBar(title = { Text("DraftLock", fontWeight = FontWeight.Bold) }) },
-            bottomBar = { NavigationBar { Screen.values().forEach { item -> NavigationBarItem(selected = screen == item, onClick = { screen = item }, icon = { Text(item.label.take(1)) }, label = { Text(item.label) }) } } }
+            topBar = {
+                TopAppBar(
+                    title = { Text("DraftLock", fontWeight = FontWeight.Bold) },
+                    actions = {
+                        TextButton(onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            context.startActivity(Intent(context, PrototypeActivity::class.java))
+                        }) { Text("Preview") }
+                    }
+                )
+            },
+            bottomBar = {
+                NavigationBar {
+                    Screen.values().forEach { item ->
+                        NavigationBarItem(
+                            selected = screen == item,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                screen = item
+                            },
+                            icon = { Text(item.label.take(1)) },
+                            label = { Text(item.label) }
+                        )
+                    }
+                }
+            }
         ) { pad ->
             Surface(Modifier.fillMaxSize().padding(pad)) {
-                when (screen) {
-                    Screen.HOME -> HomeScreen(vm, todayWords, quota, requirements, lockedApps, logic, context, { screen = Screen.WRITE }, { showOverride = true })
-                    Screen.WRITE -> WriteScreen(vm, text, todayWords, quota, documentName)
-                    Screen.RULES -> RulesScreen(vm, requirements, lockedApps, logic, context)
-                    Screen.DOCS -> DocsScreen(vm, documentName, googleAutoSave)
-                    Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
+                AnimatedContent(
+                    targetState = screen,
+                    transitionSpec = {
+                        (slideInHorizontally { it / 5 } + fadeIn(tween(250))) togetherWith
+                                (slideOutHorizontally { -it / 5 } + fadeOut(tween(200)))
+                    },
+                    label = "screenTransition"
+                ) { target ->
+                    when (target) {
+                        Screen.HOME -> HomeScreen(vm, todayWords, quota, requirements, lockedApps, logic, context, { screen = Screen.WRITE }, { showOverride = true })
+                        Screen.WRITE -> WriteScreen(vm, text, todayWords, quota, documentName)
+                        Screen.RULES -> RulesScreen(vm, requirements, lockedApps, logic, context)
+                        Screen.DOCS -> DocsScreen(vm, documentName, googleAutoSave)
+                        Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
+                    }
                 }
             }
         }
@@ -213,34 +256,62 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 @androidx.compose.runtime.Composable
 private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: List<AppRequirement>, lockedApps: List<LockedApp>, logic: String, context: Context, onWrite: () -> Unit, onOverride: () -> Unit) {
     val complete = vm.allConditionsComplete()
+    val animatedWords by animateIntAsState(words.coerceAtLeast(0), spring(dampingRatio = 0.8f, stiffness = 300f), label = "words")
+    val progress = (animatedWords.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(progress, tween(600, easing = EaseOutCubic), label = "progress")
     LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Text("WRITE FIRST. DISTRACTIONS WAIT.", style = MaterialTheme.typography.labelLarge)
+            Text("WRITE FIRST. DISTRACTIONS WAIT.", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Text("Today", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
-            Card { Column(Modifier.padding(18.dp)) { Text("${words.coerceAtLeast(0)} / $quota", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold); Text("words completed"); Spacer(Modifier.height(10.dp)); Button(onClick = onWrite) { Text("Continue writing") } } }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier.graphicsLayer { scaleX = 1f + animatedProgress * 0.02f; scaleY = 1f + animatedProgress * 0.02f }
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("$animatedWords / $quota", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("words completed", color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                    Spacer(Modifier.height(10.dp))
+                    LinearProgressIndicator(progress = { animatedProgress }, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onPrimaryContainer, trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
+                    Spacer(Modifier.height(10.dp))
+                    Button(onClick = onWrite) { Text("Continue writing") }
+                }
+            }
         }
         item { Text("Requirements", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-        item { RequirementCard("Writing", "${words.coerceAtLeast(0)} / $quota words", words >= quota) }
+        item { RequirementCard("Writing", "$animatedWords / $quota words", words >= quota) }
         items(requirements.filter { it.enabled }) { req -> RequirementCard(req.displayName, "${vm.usageMinutes[req.packageName] ?: 0} / ${req.requiredMinutes} min", (vm.usageMinutes[req.packageName] ?: 0) >= req.requiredMinutes) }
         item {
-            Card { Column(Modifier.padding(18.dp)) {
-                Text("Status", style = MaterialTheme.typography.labelLarge)
-                Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(if (complete) "All configured conditions are complete." else "$logic logic is active. Finish today's requirements to unlock the selected apps.")
-                Spacer(Modifier.height(10.dp))
-                Text("Locked apps: ${lockedApps.count { it.enabled }}")
-                if (!vm.blockingAvailable) Text("Blocking capability is not active. Device-owner/profile-owner setup is required for strong package suspension.")
-                if (!vm.usageAccess) TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) { Text("Enable Usage Access") }
-                TextButton(onClick = onOverride) { Text("Emergency override") }
-            } }
+            val statusScale by animateFloatAsState(if (complete) 1.02f else 1f, spring(dampingRatio = 0.6f, stiffness = 400f), label = "statusScale")
+            Card(modifier = Modifier.scale(statusScale)) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("Status", style = MaterialTheme.typography.labelLarge)
+                    Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = if (complete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    AnimatedContent(targetState = complete, label = "statusText") { done ->
+                        Text(if (done) "All configured conditions are complete." else "$logic logic is active. Finish today's requirements to unlock the selected apps.")
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("Locked apps: ${lockedApps.count { it.enabled }}")
+                    if (!vm.blockingAvailable) Text("Blocking capability is not active. Device-owner/profile-owner setup is required for strong package suspension.", style = MaterialTheme.typography.bodySmall)
+                    if (!vm.usageAccess) TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) { Text("Enable Usage Access") }
+                    TextButton(onClick = onOverride) { Text("Emergency override") }
+                }
+            }
         }
     }
 }
 
 @androidx.compose.runtime.Composable
 private fun RequirementCard(name: String, value: String, complete: Boolean) {
-    Card { Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold); Text(value) }; Text(if (complete) "✓" else "—", style = MaterialTheme.typography.titleLarge) } }
+    val scale by animateFloatAsState(if (complete) 1f else 0.98f, spring(dampingRatio = 0.7f, stiffness = 300f), label = "cardScale")
+    Card(modifier = Modifier.scale(scale), colors = CardDefaults.cardColors(containerColor = if (complete) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold); Text(value, style = MaterialTheme.typography.bodyMedium) }
+            AnimatedContent(targetState = complete, label = "check") { done ->
+                Text(if (done) "✓" else "—", style = MaterialTheme.typography.titleLarge, color = if (done) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 @androidx.compose.runtime.Composable

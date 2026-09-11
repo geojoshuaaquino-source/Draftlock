@@ -37,6 +37,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".PrototypeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DraftLock" />
+
         <receiver
             android:name=".admin.DraftLockDeviceAdminReceiver"
             android:description="@string/device_admin_description"
