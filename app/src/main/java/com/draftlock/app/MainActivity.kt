@@ -12,7 +12,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,18 +23,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -58,8 +53,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -67,7 +60,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.draftlock.app.ui.theme.DraftLockColors
 import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -75,7 +67,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.draftlock.app.data.AppRequirement
 import com.draftlock.app.data.DraftLockDatabase
-import com.draftlock.app.data.LocalDocument
 import com.draftlock.app.data.LockedApp
 import com.draftlock.app.data.SettingsStore
 import kotlinx.coroutines.Dispatchers
@@ -87,10 +78,10 @@ import kotlinx.coroutines.withContext
 
 private enum class Screen(val label: String, val iconRes: Int) {
     HOME("Home", R.drawable.ic_home),
-    WRITE("Quest", R.drawable.ic_write),
-    APPS("Arena", R.drawable.ic_gamepad),
-    DOCS("Vault", R.drawable.ic_docs),
-    SETTINGS("Config", R.drawable.ic_analytics)
+    WRITE("Write", R.drawable.ic_write),
+    APPS("Apps", R.drawable.ic_rules),
+    DOCS("Docs", R.drawable.ic_docs),
+    SETTINGS("Settings", R.drawable.ic_analytics)
 }
 
 class MainActivity : ComponentActivity() {
@@ -122,7 +113,6 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
 
     val requirements = db.dao().observeRequirements().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val lockedApps = db.dao().observeLockedApps().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val localDocs = db.dao().observeLocalDocs().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val text = store.documentText.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val quota = store.quota.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1000)
     val resetMinutes = store.resetMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
@@ -137,15 +127,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var usageMinutes by mutableStateOf<Map<String, Int>>(emptyMap())
     var usageAccess by mutableStateOf(usage.hasUsageAccess())
     var blockingAvailable by mutableStateOf(blocker.canSuspendApps())
-    var blockingDiagnostics by mutableStateOf(blocker.diagnostics())
-    var syncStatus by mutableStateOf("Local mode — no Google needed")
+    var syncStatus by mutableStateOf("Local only")
     var driveFiles by mutableStateOf<List<RemoteFile>>(emptyList())
     var driveQuery by mutableStateOf("DND")
     var isSyncing by mutableStateOf(false)
-    var isGoogleConfigured by mutableStateOf(GoogleOAuthManager(getApplication()).isConfigured)
-    var isGoogleConnected by mutableStateOf(try { GoogleOAuthManager(getApplication()).loadState() != null } catch(_:Exception){false})
-    var isAppsLoading by mutableStateOf(true)
-    var selectedLocalDocId by mutableStateOf<Long?>(null)
+    var isGoogleConnected by mutableStateOf(loadGoogleState() != null)
     private var lastTextWordCount = 0
 
     init {
@@ -155,14 +141,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             if (todayKey != dayKey) store.setTodayWords(0, dayKey)
         }
         refreshUsage()
-        // simulate apps loading done after short delay for shimmer
-        viewModelScope.launch { delay(900); isAppsLoading = false }
     }
 
     fun refreshUsage() {
         usageAccess = usage.hasUsageAccess()
         blockingAvailable = blocker.canSuspendApps()
-        blockingDiagnostics = blocker.diagnostics()
         if (!usageAccess) return
         viewModelScope.launch {
             val start = UsageTracker.periodStartMillis(resetMinutes.value)
@@ -184,30 +167,6 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
     }
 
-    // Local docs CRUD — all edits count to tally via word delta
-    fun createLocalDoc(title: String) = viewModelScope.launch {
-        val doc = LocalDocument(title = title.ifBlank { "Untitled Quest" }, content = "", updatedAt = System.currentTimeMillis(), wordCount = 0)
-        val id = db.dao().upsertLocalDoc(doc)
-        selectedLocalDocId = id
-        saveGoogleStatus("Created local quest: ${doc.title}")
-    }
-    fun updateLocalDocContent(id: Long, newContent: String) = viewModelScope.launch {
-        val existing = db.dao().getLocalDoc(id) ?: return@launch
-        val oldCount = existing.wordCount
-        val newCount = countWords(newContent)
-        val delta = newCount - oldCount
-        db.dao().upsertLocalDoc(existing.copy(content = newContent, wordCount = newCount, updatedAt = System.currentTimeMillis()))
-        if (delta != 0) {
-            store.setTodayWords((todayWords.value + delta).coerceAtLeast(0), UsageTracker.periodStartMillis(resetMinutes.value).toString())
-            saveGoogleStatus("Quest XP +$delta")
-        }
-    }
-    fun deleteLocalDoc(id: Long) = viewModelScope.launch { db.dao().deleteLocalDoc(id); if (selectedLocalDocId == id) selectedLocalDocId = null }
-    fun renameLocalDoc(id: Long, newTitle: String) = viewModelScope.launch {
-        val existing = db.dao().getLocalDoc(id) ?: return@launch
-        db.dao().upsertLocalDoc(existing.copy(title = newTitle, updatedAt = System.currentTimeMillis()))
-    }
-
     fun setQuota(value: Int) = viewModelScope.launch { store.setQuota(value); applyBlocking() }
     fun setResetMinutes(value: Int) = viewModelScope.launch { store.setResetMinutes(value); store.setTodayWords(0, UsageTracker.periodStartMillis(value).toString()); refreshUsage() }
     fun setLogic(value: String) = viewModelScope.launch { store.setLogic(value); applyBlocking() }
@@ -224,59 +183,52 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     }
     fun addLockedApp(app: LockedApp) = viewModelScope.launch { db.dao().upsertLockedApp(app); applyBlocking() }
     fun deleteLockedApp(pkg: String) = viewModelScope.launch { db.dao().deleteLockedApp(pkg); blocker.unsuspend(listOf(pkg)) }
+    fun isRequirement(pkg: String): AppRequirement? = requirements.value.find { it.packageName == pkg }
+    fun isLocked(pkg: String): LockedApp? = lockedApps.value.find { it.packageName == pkg }
 
     private fun loadGoogleState() = try { GoogleOAuthManager(getApplication()).loadState() } catch (_: Exception) { null }
-    fun checkGoogleConnection() {
-        isGoogleConfigured = GoogleOAuthManager(getApplication()).isConfigured
-        isGoogleConnected = loadGoogleState() != null
-        if (!isGoogleConfigured) syncStatus = "Local mode — Google optional (add GOOGLE_CLIENT_ID to enable cloud)"
-    }
+    fun checkGoogleConnection() { isGoogleConnected = loadGoogleState() != null }
     fun startGoogleAuth(context: Context) {
-        val mgr = GoogleOAuthManager(context)
-        if (!mgr.isConfigured) { saveGoogleStatus("Local mode: Google not configured. See README for GOOGLE_CLIENT_ID — your writing still counts!"); return }
-        mgr.startAuthorization { err -> saveGoogleStatus(err) }
-        saveGoogleStatus("Opening Google sign-in…")
+        try { GoogleOAuthManager(context).startAuthorization(); saveGoogleStatus("Opening Google sign-in…") }
+        catch (e: Exception) { saveGoogleStatus(e.message ?: "Google sign-in failed") }
     }
     fun fetchDriveFiles(query: String = driveQuery) {
         val manager = GoogleOAuthManager(getApplication())
-        if (!manager.isConfigured) { saveGoogleStatus("Google not configured — working locally"); return }
-        if (manager.loadState() == null) { saveGoogleStatus("Connect Google first (or use local vault)"); return }
-        isSyncing = true; saveGoogleStatus("Scanning Drive…")
+        if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
+        isSyncing = true; saveGoogleStatus("Searching Drive…")
         manager.withFreshToken(onToken = { token ->
             if (token == null) { isSyncing = false; saveGoogleStatus("Token failed"); return@withFreshToken }
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     val files = docsRepo.findFiles(token, query.ifBlank { "DND" })
-                    withContext(Dispatchers.Main) { driveFiles = files; saveGoogleStatus("Found ${files.size} cloud scrolls"); isSyncing = false }
+                    withContext(Dispatchers.Main) { driveFiles = files; saveGoogleStatus("Found ${files.size} docs"); isSyncing = false }
                 } catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Drive error: ${e.message}"); isSyncing = false } }
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
     }
     fun createGoogleDoc(name: String, onCreated: (String) -> Unit = {}) {
         val manager = GoogleOAuthManager(getApplication())
-        if (!manager.isConfigured) { saveGoogleStatus("Enable Google in local.properties first — or use local quest"); return }
         if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
-        isSyncing = true; saveGoogleStatus("Forging \"$name\"…")
+        isSyncing = true; saveGoogleStatus("Creating \"$name\"…")
         manager.withFreshToken(onToken = { token ->
             if (token == null) { isSyncing = false; saveGoogleStatus("Auth error"); return@withFreshToken }
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     val id = docsRepo.createDocument(token, name, googleFolderId.value.ifBlank { null })
-                    withContext(Dispatchers.Main) { saveGoogleStatus("Forged: $name"); setGoogleDocument(id); fetchDriveFiles(); onCreated(id); isSyncing = false }
+                    withContext(Dispatchers.Main) { saveGoogleStatus("Created: $name"); setGoogleDocument(id); fetchDriveFiles(); onCreated(id); isSyncing = false }
                 } catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Create failed: ${e.message}"); isSyncing = false } }
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
     }
     fun syncTextToDoc(docId: String = googleDocumentId.value) {
-        val doc = docId.ifBlank { saveGoogleStatus("Select a scroll first"); return }
+        val doc = docId.ifBlank { return }
         val manager = GoogleOAuthManager(getApplication())
-        if (!manager.isConfigured) { saveGoogleStatus("Google not configured — local save only"); return }
         if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
         isSyncing = true; saveGoogleStatus("Syncing…")
         manager.withFreshToken(onToken = { token ->
             if (token == null) { isSyncing = false; saveGoogleStatus("Auth error"); return@withFreshToken }
             viewModelScope.launch(Dispatchers.IO) {
-                try { docsRepo.replaceDocument(token, doc, text.value); withContext(Dispatchers.Main) { saveGoogleStatus("Synced ${countWords(text.value)} XP at ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"); isSyncing = false } }
+                try { docsRepo.replaceDocument(token, doc, text.value); withContext(Dispatchers.Main) { saveGoogleStatus("Synced ${countWords(text.value)} words at ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"); isSyncing = false } }
                 catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Sync failed: ${e.message}"); isSyncing = false } }
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
@@ -285,7 +237,6 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun activateEmergencyOverride() = viewModelScope.launch {
         store.setOverride(System.currentTimeMillis() + 15 * 60_000L)
         blocker.unsuspend(lockedApps.value.map { it.packageName })
-        saveGoogleStatus("Override: 15m unlock!")
     }
 
     fun allConditionsComplete(): Boolean {
@@ -317,6 +268,7 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
     val lockedApps by vm.lockedApps.collectAsStateWithLifecycle()
     val text by vm.text.collectAsStateWithLifecycle()
     val quota by vm.quota.collectAsStateWithLifecycle()
+    val resetMinutes by vm.resetMinutes.collectAsStateWithLifecycle()
     val logic by vm.logic.collectAsStateWithLifecycle()
     val todayWords by vm.todayWords.collectAsStateWithLifecycle()
     val documentName by vm.documentName.collectAsStateWithLifecycle()
@@ -333,15 +285,7 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(painterResource(R.drawable.ic_trophy), contentDescription = null, tint = DraftLockColors.gold, modifier = Modifier.size(22.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("DraftLock", fontWeight = FontWeight.Black)
-                            Spacer(Modifier.width(8.dp))
-                            Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent, modifier = Modifier.background(DraftLockColors.panel, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
-                        }
-                    },
+                    title = { Text("DraftLock", fontWeight = FontWeight.Bold) },
                     actions = {
                         TextButton(onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -370,8 +314,8 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                 AnimatedContent(
                     targetState = screen,
                     transitionSpec = {
-                        (slideInHorizontally { it / 4 } + fadeIn(tween(250))) togetherWith
-                                (slideOutHorizontally { -it / 4 } + fadeOut(tween(180)))
+                        (slideInHorizontally { it / 5 } + fadeIn(tween(250))) togetherWith
+                                (slideOutHorizontally { -it / 5 } + fadeOut(tween(200)))
                     },
                     label = "screenTransition"
                 ) { target ->
@@ -380,7 +324,7 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                         Screen.WRITE -> WriteScreen(vm, text, todayWords, quota, documentName)
                         Screen.APPS -> UnifiedAppsScreen(vm, context)
                         Screen.DOCS -> DocsScreen(vm)
-                        Screen.SETTINGS -> SettingsScreen(vm, quota, vm.resetMinutes.collectAsStateWithLifecycle().value, logic, googleAutoSave) { showOverride = true }
+                        Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
                     }
                 }
             }
@@ -389,10 +333,10 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 
     if (showOverride) AlertDialog(
         onDismissRequest = { showOverride = false },
-        title = { Text("Emergency warp?") },
-        text = { Text("Unlock blocked bosses for 15 minutes. Your streak stays but it's logged. Continue?") },
-        confirmButton = { TextButton(onClick = { vm.activateEmergencyOverride(); showOverride = false }) { Text("Warp 15m") } },
-        dismissButton = { TextButton(onClick = { showOverride = false }) { Text("Stay focused") } }
+        title = { Text("Emergency override") },
+        text = { Text("DraftLock will unlock blocked apps for 15 minutes. This is recorded in local history. Continue?") },
+        confirmButton = { TextButton(onClick = { vm.activateEmergencyOverride(); showOverride = false }) { Text("Unlock for 15 min") } },
+        dismissButton = { TextButton(onClick = { showOverride = false }) { Text("Cancel") } }
     )
 }
 
@@ -402,112 +346,56 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
     val animatedWords by animateIntAsState(words.coerceAtLeast(0), spring(dampingRatio = 0.8f, stiffness = 300f), label = "words")
     val progress = (animatedWords.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(progress, tween(600, easing = EaseOutCubic), label = "progress")
-    val lvl = (animatedWords / 500) + 1
-    val xpInLevel = animatedWords % 500
-    val shimmer = rememberInfiniteTransition(label = "shimmer").animateFloat(0f, 1f, infiniteRepeatable(tween(1500, easing = LinearEasing), repeatMode = RepeatMode.Restart), label = "shim")
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            // Hero XP card — game vibe
+            Text("WRITE FIRST. DISTRACTIONS WAIT.", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text("Today", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
             Card(
-                colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(8.dp),
-                modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = 1f + animatedProgress * 0.012f; scaleY = 1f + animatedProgress * 0.012f }
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier.graphicsLayer { scaleX = 1f + animatedProgress * 0.02f; scaleY = 1f + animatedProgress * 0.02f }
             ) {
-                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF1A2E1A), Color(0xFF151515))).let{ it }, shape = RoundedCornerShape(20.dp)).padding(18.dp)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(painterResource(R.drawable.ic_flame), contentDescription = null, tint = Color(0xFFFF6B35), modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("STREAK", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                                Spacer(Modifier.width(8.dp))
-                                Text("${lvl} LVL", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = DraftLockColors.gold, modifier = Modifier.background(Color(0xFF2A2410), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
-                            }
-                            Text("${if (complete) "UNLOCKED" else "LOCKED"}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else DraftLockColors.neonPink, modifier = Modifier.background(if(complete) Color(0xFF1A2E1A) else Color(0xFF2A1020), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
-                        }
-                        Text("$animatedWords / $quota XP", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
-                        Text("Keep writing to level up — every word is XP", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
-                        // XP bar with gradient + shimmer
-                        Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF2A2A2A))) {
-                            Box(Modifier.fillMaxWidth(animatedProgress).height(14.dp).clip(RoundedCornerShape(8.dp)).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd))))
-                            // shimmer sweep
-                            Box(Modifier.fillMaxWidth().height(14.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha=0.18f), Color.Transparent), startX = shimmer.value*400f - 200f, endX = shimmer.value*400f + 200f)))
-                        }
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("$xpInLevel / 500 to next", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                            Text("${(progress*100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent)
-                        }
-                        Button(onClick = onWrite, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black)) { Icon(painterResource(R.drawable.ic_star), null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Continue Quest", fontWeight = FontWeight.Bold) }
-                    }
+                Column(Modifier.padding(18.dp)) {
+                    Text("$animatedWords / $quota", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("words completed", color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                    Spacer(Modifier.height(10.dp))
+                    LinearProgressIndicator(progress = { animatedProgress }, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onPrimaryContainer, trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
+                    Spacer(Modifier.height(10.dp))
+                    Button(onClick = onWrite) { Text("Continue writing") }
                 }
             }
         }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MiniStatCard("Quests", "${requirements.size}", R.drawable.ic_gamepad, DraftLockColors.neonCyan, Modifier.weight(1f))
-                MiniStatCard("Bosses", "${lockedApps.size}", R.drawable.ic_lock_closed, DraftLockColors.neonPink, Modifier.weight(1f))
-                MiniStatCard("Logic", logic, R.drawable.ic_star, DraftLockColors.gold, Modifier.weight(1f))
-            }
-        }
-        item { Text("Active Quests", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black) }
-        item { RequirementCard("Main Quest — Writing", "$animatedWords / $quota XP", words >= quota, isMain = true) }
-        itemsIndexed(requirements.filter { it.enabled }) { idx, req ->
-            val delayMs = idx * 45
-            var visible by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) { delay(delayMs.toLong()); visible = true }
-            AnimatedVisibility(visible = visible, enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it/3 }) {
-                RequirementCard(req.displayName, "${vm.usageMinutes[req.packageName] ?: 0} / ${req.requiredMinutes} min", (vm.usageMinutes[req.packageName] ?: 0) >= req.requiredMinutes)
-            }
-        }
-        if (requirements.isEmpty()) item { Text("No quests yet — head to Arena to add apps.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted, modifier = Modifier.padding(8.dp)) }
+        item { Text("Requirements", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item { RequirementCard("Writing", "$animatedWords / $quota words", words >= quota) }
+        items(requirements.filter { it.enabled }) { req -> RequirementCard(req.displayName, "${vm.usageMinutes[req.packageName] ?: 0} / ${req.requiredMinutes} min", (vm.usageMinutes[req.packageName] ?: 0) >= req.requiredMinutes) }
         item {
             val statusScale by animateFloatAsState(if (complete) 1.02f else 1f, spring(dampingRatio = 0.6f, stiffness = 400f), label = "statusScale")
-            Card(modifier = Modifier.scale(statusScale), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0xFF142010) else DraftLockColors.panel)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(if(complete) R.drawable.ic_trophy else R.drawable.ic_lock_closed), null, tint = if(complete) DraftLockColors.gold else DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (complete) "All bosses defeated!" else "Bosses are guarding", fontWeight = FontWeight.Bold)
-                    }
+            Card(modifier = Modifier.scale(statusScale)) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("Status", style = MaterialTheme.typography.labelLarge)
+                    Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = if (complete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                     AnimatedContent(targetState = complete, label = "statusText") { done ->
-                        Text(if (done) "All conditions clear — your apps are free." else "$logic gate: ${if(logic=="AND") "write AND all quests" else "write OR any quest"} to unlock.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                        Text(if (done) "All configured conditions are complete." else "$logic logic is active. Finish today's requirements to unlock the selected apps.")
                     }
-                    // Diagnostics for blocker
-                    Text(vm.blockingDiagnostics, style = MaterialTheme.typography.bodySmall, color = if(vm.blockingAvailable) DraftLockColors.accent else DraftLockColors.neonPink)
-                    if (!vm.usageAccess) Button(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }, colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonCyan)) { Text("Enable Usage Access") }
-                    TextButton(onClick = onOverride) { Text("Emergency warp 15m") }
+                    Spacer(Modifier.height(10.dp))
+                    Text("Locked apps: ${lockedApps.count { it.enabled }}")
+                    if (!vm.blockingAvailable) Text("Blocking capability is not active. Device-owner/profile-owner setup is required for strong package suspension.", style = MaterialTheme.typography.bodySmall)
+                    if (!vm.usageAccess) TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) { Text("Enable Usage Access") }
+                    TextButton(onClick = onOverride) { Text("Emergency override") }
                 }
             }
-        }
-    }
-}
-
-@Composable private fun MiniStatCard(label:String, value:String, icon:Int, tint:Color, mod:Modifier) {
-    Card(mod = mod, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
-        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.height(6.dp))
-            Text(value, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
         }
     }
 }
 
 @androidx.compose.runtime.Composable
-private fun RequirementCard(name: String, value: String, complete: Boolean, isMain:Boolean=false) {
-    val scale by animateFloatAsState(if (complete) 1f else 0.99f, spring(dampingRatio = 0.7f, stiffness = 300f), label = "cardScale")
-    Card(modifier = Modifier.scale(scale).fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0xFF1A2E1A) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(complete) 6.dp else 2.dp)) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(if(complete) DraftLockColors.accent else Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
-                Icon(painterResource(if(complete) R.drawable.ic_trophy else if(isMain) R.drawable.ic_star else R.drawable.ic_gamepad), null, tint = if(complete) Color.Black else DraftLockColors.muted, modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold, maxLines = 1); Text(value, style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted) }
+private fun RequirementCard(name: String, value: String, complete: Boolean) {
+    val scale by animateFloatAsState(if (complete) 1f else 0.98f, spring(dampingRatio = 0.7f, stiffness = 300f), label = "cardScale")
+    Card(modifier = Modifier.scale(scale), colors = CardDefaults.cardColors(containerColor = if (complete) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold); Text(value, style = MaterialTheme.typography.bodyMedium) }
             AnimatedContent(targetState = complete, label = "check") { done ->
-                Box(Modifier.size(28.dp).clip(CircleShape).background(if(done) DraftLockColors.accent else Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
-                    Text(if (done) "✓" else "•", fontWeight = FontWeight.Black, color = if(done) Color.Black else DraftLockColors.muted)
-                }
+                Text(if (done) "✓" else "—", style = MaterialTheme.typography.titleLarge, color = if (done) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -515,69 +403,11 @@ private fun RequirementCard(name: String, value: String, complete: Boolean, isMa
 
 @androidx.compose.runtime.Composable
 private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
-    val localDocs by vm.localDocs.collectAsStateWithLifecycle()
-    val selected = vm.selectedLocalDocId?.let { id -> localDocs.find { it.id == id } }
-    var draft by remember(text, selected?.id) { mutableStateOf(selected?.content ?: text) }
-    var title by remember(documentName, selected?.title) { mutableStateOf(selected?.title ?: documentName) }
-    val progress = (words.toFloat()/ quota.coerceAtLeast(1)).coerceIn(0f,1f)
-    Column(Modifier.fillMaxSize()) {
-        // top XP strip
-        Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFF1A1A1A))) { Box(Modifier.fillMaxWidth(progress).height(6.dp).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd)))) }
-        LazyColumn(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) { Text(selected?.title ?: documentName, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium); Text("${words} / $quota XP  •  ${if(selected!=null) "Quest" else "Main Scroll"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
-                    if (vm.isSyncing) Row(verticalAlignment = Alignment.CenterVertically) { LinearProgressIndicator(modifier = Modifier.width(60.dp)); Spacer(Modifier.width(6.dp)); Text("Sync…", style = MaterialTheme.typography.labelSmall) } else Text("Local + Cloud", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent)
-                }
-            }
-            // local docs bento
-            item {
-                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("Your Quests", fontWeight = FontWeight.Bold)
-                            Button(onClick = { vm.createLocalDoc("Quest ${localDocs.size + 1}") }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)) { Text("+ New", style = MaterialTheme.typography.labelSmall) }
-                        }
-                        if (localDocs.isEmpty()) Text("Create a local quest — every word counts to your daily XP!", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
-                        else LazyColumn(Modifier.height(110.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(localDocs.take(6)) { doc ->
-                                val sel = vm.selectedLocalDocId == doc.id
-                                Card(onClick = { vm.selectedLocalDocId = doc.id; draft = doc.content; title = doc.title }, shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = if(sel) Color(0xFF1A2E1A) else Color(0xFF1E1E1E)), modifier = Modifier.fillMaxWidth()) {
-                                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(painterResource(R.drawable.ic_docs), null, tint = if(sel) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Column(Modifier.weight(1f)) { Text(doc.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, maxLines = 1); Text("${doc.wordCount} XP • ${java.text.SimpleDateFormat("MM/dd", java.util.Locale.getDefault()).format(java.util.Date(doc.updatedAt))}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
-                                        if(sel) Icon(painterResource(R.drawable.ic_star), null, tint = DraftLockColors.gold, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        }
-                        if (selected != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { vm.deleteLocalDoc(selected.id) }) { Text("Delete", color = DraftLockColors.neonPink) }
-                            TextButton(onClick = { title = selected.title; draft = selected.content }) { Text("Reload") }
-                        }
-                    }
-                }
-            }
-            item {
-                OutlinedTextField(value = title, onValueChange = { title = it; if(selected!=null) vm.renameLocalDoc(selected.id, it) else vm.setDocumentName(it) }, label = { Text("Scroll Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            }
-            item {
-                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))) {
-                    OutlinedTextField(
-                        value = draft,
-                        onValueChange = {
-                            draft = it
-                            if (selected != null) vm.updateLocalDocContent(selected.id, it) else vm.onTextChanged(it)
-                        },
-                        modifier = Modifier.fillMaxWidth().height(300.dp),
-                        placeholder = { Text("Start your quest… every word is XP. Distractions wait until you hit $quota.") },
-                        singleLine = false
-                    )
-                }
-            }
-            item { Text("Tip: Local quests and main scroll both add to today's tally. Write anywhere — it all counts.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted) }
-        }
+    var draft by remember(text) { mutableStateOf(text) }
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(documentName, fontWeight = FontWeight.Bold); Text("${words.coerceAtLeast(0)} / $quota words") }; Text("Saved locally") }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxSize(), placeholder = { Text("Start writing…") }, singleLine = false)
     }
 }
 
@@ -588,19 +418,13 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
     val logic by vm.logic.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("ALL") }
-    var isLoading by remember { mutableStateOf(true) }
     val pm = context.packageManager
-    var allApps by remember { mutableStateOf<List<SimpleApp>>(emptyList()) }
-    LaunchedEffect(context) {
-        isLoading = true
-        withContext(Dispatchers.IO) {
-            val list = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PackageManager.MATCH_ALL)
-                .map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }
-                .filter { it.packageName != context.packageName }
-                .map { info -> SimpleApp(info.packageName, pm.getApplicationLabel(info).toString()) }
-                .sortedBy { it.label.lowercase() }
-            withContext(Dispatchers.Main) { allApps = list; isLoading = false }
-        }
+    val allApps = remember(context) {
+        pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PackageManager.MATCH_ALL)
+            .map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }
+            .filter { it.packageName != context.packageName }
+            .map { SimpleApp(it.packageName, pm.getApplicationLabel(it).toString()) }
+            .sortedBy { it.label.lowercase() }
     }
     val filtered = remember(query, filter, allApps, requirements, lockedApps) {
         allApps.filter {
@@ -614,69 +438,32 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
         }
     }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp, shadowElevation = 4.dp) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(R.drawable.ic_gamepad), null, tint = DraftLockColors.neonCyan, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Arena", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                    }
-                    FilterChip(selected = logic == "AND", onClick = { vm.setLogic(if (logic == "AND") "OR" else "AND") }, label = { Text(logic, fontWeight = FontWeight.Black) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.accent, selectedLabelColor = Color.Black))
+                    Text("All Apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    FilterChip(selected = logic == "AND", onClick = { vm.setLogic(if (logic == "AND") "OR" else "AND") }, label = { Text(logic, fontWeight = FontWeight.Bold) })
                 }
-                Text("${requirements.size} quests • ${lockedApps.size} bosses • ${allApps.size} apps", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                Text("Unlock: ${if (logic=="AND") "write AND all quests" else "write OR any quest"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent)
-                OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search arena…") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("${requirements.size} required • ${lockedApps.size} blocked • ${allApps.size} installed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Unlock needs: ${if (logic=="AND") "writing AND all required apps" else "writing OR any required app"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search apps…") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("ALL","REQUIRED","BLOCKED","AVAILABLE").forEach { f ->
-                        FilterChip(selected = filter==f, onClick = { filter = f }, label = { Text(f, style = MaterialTheme.typography.labelSmall) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.panelElevated))
+                        FilterChip(selected = filter==f, onClick = { filter = f }, label = { Text(f) })
                     }
                 }
-                if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = DraftLockColors.accent)
             }
         }
-        if (isLoading) {
-            // shimmer placeholders
-            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)) {
-                items(6) {
-                    Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth().height(90.dp)) {
-                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF1A1A1A), Color(0xFF232323)))).padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF2A2A2A)))
-                                Spacer(Modifier.width(12.dp))
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
-                                    Box(Modifier.fillMaxWidth(0.5f).height(14.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF2A2A2A)))
-                                    Box(Modifier.fillMaxWidth(0.7f).height(10.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF252525)))
-                                }
-                            }
-                        }
-                    }
-                }
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)) {
+            items(filtered, key = { it.packageName }) { app ->
+                val req = requirements.find { it.packageName == app.packageName }
+                val locked = lockedApps.find { it.packageName == app.packageName }
+                val minutes = vm.usageMinutes[app.packageName] ?: 0
+                UnifiedAppRow(app, req, locked, minutes, vm)
             }
-        } else {
-            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)) {
-                itemsIndexed(filtered, key = { _, it -> it.packageName }) { idx, app ->
-                    var visible by remember { mutableStateOf(false) }
-                    LaunchedEffect(app.packageName) { delay((idx*30).toLong().coerceAtMost(180)); visible = true }
-                    AnimatedVisibility(visible = visible, enter = fadeIn(tween(260)) + slideInVertically(tween(260)) { it/4 } + scaleIn(tween(260))) {
-                        val req = requirements.find { it.packageName == app.packageName }
-                        val locked = lockedApps.find { it.packageName == app.packageName }
-                        val minutes = vm.usageMinutes[app.packageName] ?: 0
-                        UnifiedAppRow(app, req, locked, minutes, vm)
-                    }
-                }
-                if (filtered.isEmpty()) { item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Text("No apps match your filter.", color = DraftLockColors.muted) } } }
-                item { Text(vm.blockingDiagnostics, style = MaterialTheme.typography.labelSmall, color = if(vm.blockingAvailable) DraftLockColors.accent else DraftLockColors.neonPink, modifier = Modifier.padding(12.dp)) }
-            }
+            if (filtered.isEmpty()) { item { Text("No apps match.", modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+            item { Text("Tap Require to track usage, Block to suspend until writing is done. Blocking needs device-owner.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
         }
-    }
-}
-
-private data class SimpleApp(val packageName: String, val label: String)
-
-@Composable private fun AppIcon(label: String, mod: Modifier) {
-    Box(mod.clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-        Text(label.take(1).uppercase(), fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimaryContainer)
     }
 }
 
@@ -684,168 +471,107 @@ private data class SimpleApp(val packageName: String, val label: String)
 private fun UnifiedAppRow(app: SimpleApp, req: AppRequirement?, locked: LockedApp?, minutes: Int, vm: DraftLockViewModel) {
     var showMinutes by remember { mutableStateOf(false) }
     var minutesVal by remember(req?.requiredMinutes ?: 30) { mutableStateOf(req?.requiredMinutes?.toFloat() ?: 30f) }
-    val isBoss = locked != null
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = if(isBoss) Color(0xFF1E1218) else DraftLockColors.panel),
-        elevation = CardDefaults.cardElevation(if(isBoss) 6.dp else 2.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                AppIcon(app.label, Modifier.size(44.dp))
+                androidx.compose.foundation.layout.Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                    Text(app.label.take(1).uppercase(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(app.label, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f, fill=false))
-                        if (isBoss) { Spacer(Modifier.width(6.dp)); Icon(painterResource(R.drawable.ic_gamepad), null, tint = DraftLockColors.neonPink, modifier = Modifier.size(14.dp)) }
-                    }
-                    Text(app.packageName, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, maxLines = 1)
-                    if (req != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF2A2A2A))) {
-                                Box(Modifier.fillMaxWidth((minutes.toFloat()/req.requiredMinutes).coerceIn(0f,1f)).height(6.dp).clip(RoundedCornerShape(4.dp)).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.neonCyan))))
-                            }
-                            Spacer(Modifier.width(6.dp))
-                            Text("$minutes/${req.requiredMinutes}m", style = MaterialTheme.typography.labelSmall, color = if (minutes >= req.requiredMinutes) DraftLockColors.accent else DraftLockColors.muted)
-                        }
-                    }
+                    Text(app.label, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    if (req != null) Text("$minutes / ${req.requiredMinutes} min today", style = MaterialTheme.typography.bodySmall, color = if (minutes >= req.requiredMinutes) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (req != null) Icon(painterResource(R.drawable.ic_star), null, tint = if (minutes >= req.requiredMinutes) DraftLockColors.gold else DraftLockColors.muted, modifier = Modifier.size(18.dp))
-                if (locked != null) Icon(painterResource(R.drawable.ic_lock_closed), null, tint = DraftLockColors.neonPink, modifier = Modifier.size(18.dp))
+                if (req != null) Icon(painter = painterResource(R.drawable.ic_analytics), contentDescription = null, tint = if (minutes >= req.requiredMinutes) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                if (locked != null) Icon(painter = painterResource(R.drawable.ic_lock_closed), contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 if (req == null) {
-                    Button(onClick = { vm.addRequirement(AppRequirement(packageName = app.packageName, displayName = app.label, requiredMinutes = 30)) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(10.dp)) { Icon(painterResource(R.drawable.ic_star), null, Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("Quest", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall) }
+                    Button(onClick = { vm.addRequirement(AppRequirement(packageName = app.packageName, displayName = app.label, requiredMinutes = 30)) }, modifier = Modifier.weight(1f)) { Text("Require") }
                 } else {
-                    Button(onClick = { showMinutes = !showMinutes }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), shape = RoundedCornerShape(10.dp)) { Text("${req.requiredMinutes}m", fontWeight = FontWeight.Bold) }
-                    TextButton(onClick = { vm.deleteRequirement(req.id) }) { Text("Remove", style = MaterialTheme.typography.labelSmall) }
+                    Button(onClick = { showMinutes = !showMinutes }, modifier = Modifier.weight(1f), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) { Text("${req.requiredMinutes}m") }
+                    TextButton(onClick = { vm.deleteRequirement(req.id) }) { Text("Remove") }
                 }
                 if (locked == null) {
-                    Button(onClick = { vm.addLockedApp(LockedApp(app.packageName, app.label)) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A1020), contentColor = DraftLockColors.neonPink), shape = RoundedCornerShape(10.dp)) { Icon(painterResource(R.drawable.ic_lock_closed), null, Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("Boss", style = MaterialTheme.typography.labelSmall) }
+                    Button(onClick = { vm.addLockedApp(LockedApp(app.packageName, app.label)) }, modifier = Modifier.weight(1f), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer)) { Text("Block", color = MaterialTheme.colorScheme.onErrorContainer) }
                 } else {
-                    Button(onClick = { vm.deleteLockedApp(locked.packageName) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonPink, contentColor = Color.White), shape = RoundedCornerShape(10.dp)) { Text("Free", style = MaterialTheme.typography.labelSmall) }
+                    Button(onClick = { vm.deleteLockedApp(locked.packageName) }, modifier = Modifier.weight(1f), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Unblock") }
                 }
             }
             if (showMinutes && req != null) {
-                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Quest duration: ${minutesVal.toInt()}m", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                        Slider(value = minutesVal, onValueChange = { minutesVal = it }, valueRange = 5f..120f, steps = 22)
-                        Button(onClick = { vm.updateRequirementMinutes(req.id, minutesVal.toInt()); showMinutes = false }, modifier = Modifier.align(Alignment.End), colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black)) { Text("Save") }
-                    }
+                Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(12.dp)) {
+                    Text("Required minutes: ${minutesVal.toInt()}m", style = MaterialTheme.typography.bodyMedium)
+                    Slider(value = minutesVal, onValueChange = { minutesVal = it }, valueRange = 5f..120f, steps = 22)
+                    Button(onClick = { vm.updateRequirementMinutes(req.id, minutesVal.toInt()); showMinutes = false }, modifier = Modifier.align(Alignment.End)) { Text("Save") }
                 }
             }
         }
     }
 }
 
+private data class SimpleApp(val packageName: String, val label: String)
+
 @androidx.compose.runtime.Composable
 private fun DocsScreen(vm: DraftLockViewModel) {
     val context = LocalContext.current
-    val localDocs by vm.localDocs.collectAsStateWithLifecycle()
+    val documentName by vm.documentName.collectAsStateWithLifecycle()
     val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
     val text by vm.text.collectAsStateWithLifecycle()
     val folderId by vm.googleFolderId.collectAsStateWithLifecycle()
     val docId by vm.googleDocumentId.collectAsStateWithLifecycle()
-    var newLocalTitle by remember { mutableStateOf("") }
-    var newDocName by remember { mutableStateOf("Scroll ${java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date())}") }
-    var filterTab by remember { mutableStateOf("LOCAL") } // LOCAL / CLOUD
+    var name by remember(documentName) { mutableStateOf(documentName) }
+    var newDocName by remember { mutableStateOf("DND Chapter ${java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date())}") }
     LaunchedEffect(Unit) { vm.checkGoogleConnection(); if (vm.isGoogleConnected) vm.fetchDriveFiles() }
-    LazyColumn(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0xFF142010) else if(vm.isGoogleConfigured) Color(0xFF2A1A10) else DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(36.dp).clip(CircleShape).background(if(vm.isGoogleConnected) DraftLockColors.accent else if(vm.isGoogleConfigured) DraftLockColors.gold else Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
-                        Icon(painterResource(R.drawable.ic_google), null, tint = if(vm.isGoogleConnected) Color.Black else Color.White, modifier = Modifier.size(18.dp))
-                    }
+            Card(colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painter = painterResource(R.drawable.ic_google), contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(if (vm.isGoogleConnected) "Cloud Linked" else if(!vm.isGoogleConfigured) "Local Vault" else "Cloud Offline", fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodySmall)
-                        Text(vm.syncStatus, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                        if (!vm.isGoogleConfigured) Text("Add GOOGLE_CLIENT_ID to enable Drive", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.gold)
+                        Text(if (vm.isGoogleConnected) "Google Connected" else "Not Connected", fontWeight = FontWeight.Bold)
+                        Text(vm.syncStatus, style = MaterialTheme.typography.bodySmall)
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (!vm.isGoogleConnected && vm.isGoogleConfigured) Button(onClick = { vm.startGoogleAuth(context) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)) { Text("Link", style = MaterialTheme.typography.labelSmall) }
-                        else if (vm.isGoogleConnected) TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection(); vm.saveGoogleStatus("Unlinked") }) { Text("Unlink", style = MaterialTheme.typography.labelSmall) }
-                        else Text("Local ✓", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent)
-                    }
+                    if (!vm.isGoogleConnected) Button(onClick = { vm.startGoogleAuth(context); vm.checkGoogleConnection() }) { Text("Connect") }
+                    else TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection(); vm.saveGoogleStatus("Disconnected") }) { Text("Disconnect") }
                 }
             }
         }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = filterTab=="LOCAL", onClick = { filterTab="LOCAL" }, label = { Text("Local Quests (${localDocs.size})") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.accent, selectedLabelColor = Color.Black))
-                FilterChip(selected = filterTab=="CLOUD", onClick = { filterTab="CLOUD" }, label = { Text("Cloud Scrolls") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = DraftLockColors.neonCyan, selectedLabelColor = Color.Black))
+        item { Text("Active Document", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+        item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Document name") }, modifier = Modifier.fillMaxWidth()) }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { vm.setDocumentName(name); vm.saveGoogleStatus("Saved locally") }, modifier = Modifier.weight(1f)) { Text("Save Name") }
+            Button(onClick = { vm.syncTextToDoc() }, enabled = vm.isGoogleConnected && !vm.isSyncing && docId.isNotBlank()) { Text(if (vm.isSyncing) "Syncing…" else "Sync Now") }
+        } }
+        item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Auto-save to Docs", Modifier.weight(1f)); Switch(checked = autoSave, onCheckedChange = vm::setGoogleAutoSave) } }
+        item { Divider() }
+        item { Text("Drive Library", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = vm.driveQuery, onValueChange = { vm.driveQuery = it }, label = { Text("Filter (prefix)") }, modifier = Modifier.weight(1f), singleLine = true)
+            Button(onClick = { vm.fetchDriveFiles() }, enabled = vm.isGoogleConnected && !vm.isSyncing) { Text("Search") }
+        } }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(value = newDocName, onValueChange = { newDocName = it }, label = { Text("New doc name") }, modifier = Modifier.weight(1f), singleLine = true)
+            Button(onClick = { if (newDocName.isNotBlank()) vm.createGoogleDoc(newDocName) { newDocName = "" } }, enabled = vm.isGoogleConnected && !vm.isSyncing) { Text("Create") }
+        } }
+        if (vm.isSyncing) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
+        items(vm.driveFiles) { file ->
+            Card(modifier = Modifier.fillMaxWidth().clickable { vm.setGoogleDocument(file.id); vm.setDocumentName(file.name); vm.saveGoogleStatus("Selected ${file.name}") }) {
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painter = painterResource(R.drawable.ic_docs), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(file.name, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("Edited ${file.modifiedTime.take(10)} • ${file.id.take(8)}…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (file.id == docId) Icon(painter = painterResource(R.drawable.ic_lock_open), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                }
             }
         }
-        if (filterTab == "LOCAL") {
-            item { Text("Local Quests — all words add to daily XP", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black) }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = newLocalTitle, onValueChange = { newLocalTitle = it }, label = { Text("New quest title") }, modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
-                    Button(onClick = { if(newLocalTitle.isNotBlank()) { vm.createLocalDoc(newLocalTitle); newLocalTitle="" } }, colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black)) { Text("Forge") }
-                }
-            }
-            if (localDocs.isEmpty()) item { Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No local quests — forge one above. Every keystroke is XP.", color = DraftLockColors.muted, style = MaterialTheme.typography.bodySmall) } } }
-            items(localDocs) { doc ->
-                Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
-                    var editing by remember { mutableStateOf(false) }
-                    var editText by remember(doc.content) { mutableStateOf(doc.content) }
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(painterResource(R.drawable.ic_docs), null, tint = DraftLockColors.accent, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Column(Modifier.weight(1f)) { Text(doc.title, fontWeight = FontWeight.Bold, maxLines = 1); Text("${doc.wordCount} XP • ${java.text.SimpleDateFormat("MMM dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(doc.updatedAt))}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
-                            TextButton(onClick = { vm.deleteLocalDoc(doc.id) }) { Text("Delete", color = DraftLockColors.neonPink, style = MaterialTheme.typography.labelSmall) }
-                        }
-                        if (!editing) {
-                            Text(doc.content.ifBlank { "Empty scroll — tap Edit to write. Words here count to your ${vm.quota.collectAsStateWithLifecycle().value} XP goal." }, style = MaterialTheme.typography.bodySmall, color = if(doc.content.isBlank()) DraftLockColors.muted else Color.White, maxLines = 3)
-                            Button(onClick = { editing = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A2E1A))) { Text("Edit Quest") }
-                        } else {
-                            OutlinedTextField(value = editText, onValueChange = { editText = it }, modifier = Modifier.fillMaxWidth().height(120.dp), placeholder = { Text("Write…") }, shape = RoundedCornerShape(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                TextButton(onClick = { editing = false; editText = doc.content }) { Text("Cancel") }
-                                Button(onClick = { vm.updateLocalDocContent(doc.id, editText); editing = false }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black)) { Text("Save (+${editText.split(Regex("\\s+")).count{it.isNotBlank()} - doc.wordCount} XP)") }
-                            }
-                        }
-                    }
-                }
-            }
-            item { Divider() }
-            item { Text("Vault also shows your cloud scrolls — switch to Cloud tab.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
-        } else {
-            // CLOUD tab
-            item { Text("Cloud Scrolls", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black) }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(value = vm.driveQuery, onValueChange = { vm.driveQuery = it }, label = { Text("Filter prefix") }, modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
-                Button(onClick = { vm.fetchDriveFiles() }, enabled = vm.isGoogleConnected && !vm.isSyncing && vm.isGoogleConfigured, colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonCyan, contentColor = Color.Black)) { Text("Scan") }
-            } }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = newDocName, onValueChange = { newDocName = it }, label = { Text("New scroll name") }, modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
-                Button(onClick = { if (newDocName.isNotBlank()) vm.createGoogleDoc(newDocName) { newDocName = "" } }, enabled = vm.isGoogleConnected && !vm.isSyncing, colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black)) { Text("Forge") }
-            } }
-            if (vm.isSyncing) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = DraftLockColors.accent) }
-            if (!vm.isGoogleConfigured) item { Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2410))) { Text("Google not configured — add GOOGLE_CLIENT_ID to local.properties to enable cloud. Local quests work without it.", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, color = DraftLockColors.gold) } }
-            items(vm.driveFiles) { file ->
-                Card(modifier = Modifier.fillMaxWidth().clickable { vm.setGoogleDocument(file.id); vm.setDocumentName(file.name); vm.saveGoogleStatus("Selected ${file.name}") }, shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = if(file.id==docId) Color(0xFF142010) else DraftLockColors.panel)) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(R.drawable.ic_docs), null, tint = DraftLockColors.neonCyan, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(file.name, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text("Edited ${file.modifiedTime.take(10)} • ${file.id.take(8)}…", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                        }
-                        if (file.id == docId) Icon(painterResource(R.drawable.ic_trophy), null, tint = DraftLockColors.gold, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-            if (vm.driveFiles.isEmpty() && vm.isGoogleConnected) item { Text("No scrolls — forge one above.", color = DraftLockColors.muted, style = MaterialTheme.typography.bodySmall) }
-            item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { vm.syncTextToDoc() }, enabled = vm.isGoogleConnected && !vm.isSyncing && docId.isNotBlank() && vm.isGoogleConfigured, modifier = Modifier.weight(1f)) { Text(if (vm.isSyncing) "Syncing…" else "Sync Current Draft") }
-            } }
-        }
-        item { Text("Local words: ${text.split(Regex("\\s+")).count { it.isNotBlank() }} + local quests = ${(localDocs.sumOf{it.wordCount} + text.split(Regex("\\s+")).count { it.isNotBlank() })} total • Folder: ${folderId.ifBlank { "(root)" }}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
+        if (vm.driveFiles.isEmpty() && vm.isGoogleConnected) item { Text("No docs found. Try search or create one.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+        item { Text("Local words: ${text.split(Regex("\\s+")).count { it.isNotBlank() }} • ${if (autoSave) "Auto-sync ON" else "Manual sync"} • Folder ID: ${folderId.ifBlank { "(root)" }}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Google Docs integration uses official Drive file + Docs batchUpdate APIs. Token stored encrypted via AndroidKeyStore.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -853,28 +579,15 @@ private fun DocsScreen(vm: DraftLockViewModel) {
 private fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int, logic: String, autoSave: Boolean, onOverride: () -> Unit) {
     var quotaText by remember(quota) { mutableStateOf(quota.toString()) }
     var resetText by remember(resetMinutes) { mutableStateOf(resetMinutes.toString()) }
-    LazyColumn(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_trophy), null, tint = DraftLockColors.gold, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Daily Goal", fontWeight = FontWeight.Black) }
-                    OutlinedTextField(value = quotaText, onValueChange = { quotaText = it.filter(Char::isDigit) }, label = { Text("XP Goal (words)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                    Button(onClick = { vm.setQuota(quotaText.toIntOrNull() ?: quota) }, colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black), modifier = Modifier.fillMaxWidth()) { Text("Save Goal") }
-                }
-            }
-        }
-        item {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Day Reset", fontWeight = FontWeight.Bold)
-                    OutlinedTextField(value = resetText, onValueChange = { resetText = it.filter(Char::isDigit) }, label = { Text("Minutes after midnight (0–1439)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                    Button(onClick = { vm.setResetMinutes(resetText.toIntOrNull()?.coerceIn(0, 1439) ?: resetMinutes) }, colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonCyan, contentColor = Color.Black)) { Text("Save Reset") }
-                }
-            }
-        }
-        item { Text("How bosses unlock: $logic gate", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted) }
-        item { Button(onClick = onOverride, colors = ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonPink), modifier = Modifier.fillMaxWidth()) { Icon(painterResource(R.drawable.ic_flame), null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Emergency Warp 15m") } }
-        item { Text("Blocking: ${vm.blockingDiagnostics}", style = MaterialTheme.typography.bodySmall, color = if(vm.blockingAvailable) DraftLockColors.accent else DraftLockColors.neonPink) }
-        item { Text("Need strong block? On a test device run:\nadb shell dpm set-device-owner com.draftlock.app/.admin.DraftLockDeviceAdminReceiver\n(only on fresh device, no Google accounts)", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
+    LazyColumn(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+        item { OutlinedTextField(value = quotaText, onValueChange = { quotaText = it.filter(Char::isDigit) }, label = { Text("Daily word quota") }, modifier = Modifier.fillMaxWidth()) }
+        item { Button(onClick = { vm.setQuota(quotaText.toIntOrNull() ?: quota) }) { Text("Save quota") } }
+        item { OutlinedTextField(value = resetText, onValueChange = { resetText = it.filter(Char::isDigit) }, label = { Text("Reset minutes after midnight (0–1439)") }, modifier = Modifier.fillMaxWidth()) }
+        item { Button(onClick = { vm.setResetMinutes(resetText.toIntOrNull()?.coerceIn(0, 1439) ?: resetMinutes) }) { Text("Save reset time") } }
+        item { Text("Requirement logic: $logic") }
+        item { Button(onClick = onOverride) { Text("Emergency override") } }
+        item { Text("Emergency override is intentionally inconvenient and unlocks selected apps for only 15 minutes.") }
+        item { Text("For strong app suspension, provision DraftLock as the device owner during device setup or testing, for example with adb dpm set-device-owner. Do this only on a device you control; device-owner provisioning changes device management state.") }
     }
 }
