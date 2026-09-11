@@ -11,12 +11,13 @@ class UsageTracker(private val context: Context) {
     private val usageStatsManager = context.getSystemService(UsageStatsManager::class.java)
 
     fun hasUsageAccess(): Boolean = try {
-        val now = System.currentTimeMillis()
-        usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000, now)
-            .isNotEmpty()
-    } catch (_: Exception) {
-        false
-    }
+        val appOps = context.getSystemService(android.app.AppOpsManager::class.java)
+        val mode = appOps?.checkOpNoThrow("android:get_usage_stats", android.os.Process.myUid(), context.packageName)
+        if (mode == android.app.AppOpsManager.MODE_ALLOWED) true else {
+            val now = System.currentTimeMillis()
+            usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000, now).isNotEmpty()
+        }
+    } catch (_: Exception) { false }
 
     fun openUsageAccessSettings() {
         context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
