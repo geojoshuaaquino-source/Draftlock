@@ -108,22 +108,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Thread.setDefaultUncaughtExceptionHandler { _, e -> android.util.Log.e("DraftLock", "Uncaught", e) }
         try { WindowCompat.setDecorFitsSystemWindows(window, false) } catch (_: Exception) {}
-        try { oauthManager = GoogleOAuthManager(this) } catch (e: Exception) { android.util.Log.e("DraftLock", "OAuth init fail", e); oauthManager = GoogleOAuthManager(this) }
-        try { handleOAuthIntent(intent) } catch (_: Exception) {}
-        setContent {
-            try { DraftLockApp() } catch (e: Exception) {
-                android.util.Log.e("DraftLock", "Compose crash", e)
-                androidx.compose.material3.MaterialTheme {
-                    Box(Modifier.fillMaxSize().background(Color(0xFF0A0A0F)), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("DraftLock failed to start", color = Color.White, fontWeight = FontWeight.Bold)
-                            Text(e.message ?: "Unknown error", color = Color(0xFF9AA0A8), style = MaterialTheme.typography.bodySmall)
-                            Button(onClick = { recreate() }) { Text("Retry") }
-                        }
-                    }
-                }
-            }
-        }
+        oauthManager = GoogleOAuthManager(this)
+        handleOAuthIntent(intent)
+        setContent { DraftLockApp() }
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
