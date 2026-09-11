@@ -12,6 +12,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +24,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,6 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -60,6 +65,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.draftlock.app.ui.theme.DraftLockColors
 import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -127,6 +133,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var usageMinutes by mutableStateOf<Map<String, Int>>(emptyMap())
     var usageAccess by mutableStateOf(usage.hasUsageAccess())
     var blockingAvailable by mutableStateOf(blocker.canSuspendApps())
+    var blockingDiagnostics by mutableStateOf(blocker.diagnostics())
     var syncStatus by mutableStateOf("Local only")
     var driveFiles by mutableStateOf<List<RemoteFile>>(emptyList())
     var driveQuery by mutableStateOf("DND")
@@ -146,6 +153,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun refreshUsage() {
         usageAccess = usage.hasUsageAccess()
         blockingAvailable = blocker.canSuspendApps()
+        blockingDiagnostics = blocker.diagnostics()
         if (!usageAccess) return
         viewModelScope.launch {
             val start = UsageTracker.periodStartMillis(resetMinutes.value)
@@ -187,14 +195,22 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun isLocked(pkg: String): LockedApp? = lockedApps.value.find { it.packageName == pkg }
 
     private fun loadGoogleState() = try { GoogleOAuthManager(getApplication()).loadState() } catch (_: Exception) { null }
-    fun checkGoogleConnection() { isGoogleConnected = loadGoogleState() != null }
+    var isGoogleConfigured by mutableStateOf(GoogleOAuthManager(getApplication()).isConfigured)
+    fun checkGoogleConnection() {
+        isGoogleConfigured = GoogleOAuthManager(getApplication()).isConfigured
+        isGoogleConnected = loadGoogleState() != null
+        if (!isGoogleConfigured) syncStatus = "Local mode — Google optional (add GOOGLE_CLIENT_ID)"
+    }
     fun startGoogleAuth(context: Context) {
-        try { GoogleOAuthManager(context).startAuthorization(); saveGoogleStatus("Opening Google sign-in…") }
-        catch (e: Exception) { saveGoogleStatus(e.message ?: "Google sign-in failed") }
+        val mgr = GoogleOAuthManager(context)
+        if (!mgr.isConfigured) { saveGoogleStatus("Local mode: Google not configured — writing still counts!"); return }
+        mgr.startAuthorization { err -> saveGoogleStatus(err) }
+        saveGoogleStatus("Opening Google sign-in…")
     }
     fun fetchDriveFiles(query: String = driveQuery) {
         val manager = GoogleOAuthManager(getApplication())
-        if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
+        if (!manager.isConfigured) { saveGoogleStatus("Google not configured — local vault active"); return }
+        if (manager.loadState() == null) { saveGoogleStatus("Connect Google first (or use local)"); return }
         isSyncing = true; saveGoogleStatus("Searching Drive…")
         manager.withFreshToken(onToken = { token ->
             if (token == null) { isSyncing = false; saveGoogleStatus("Token failed"); return@withFreshToken }
@@ -208,6 +224,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     }
     fun createGoogleDoc(name: String, onCreated: (String) -> Unit = {}) {
         val manager = GoogleOAuthManager(getApplication())
+        if (!manager.isConfigured) { saveGoogleStatus("Enable Google first — or use local quest"); return }
         if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
         isSyncing = true; saveGoogleStatus("Creating \"$name\"…")
         manager.withFreshToken(onToken = { token ->
@@ -221,8 +238,9 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
     }
     fun syncTextToDoc(docId: String = googleDocumentId.value) {
-        val doc = docId.ifBlank { return }
+        val doc = docId.ifBlank { saveGoogleStatus("Select a scroll first"); return }
         val manager = GoogleOAuthManager(getApplication())
+        if (!manager.isConfigured) { saveGoogleStatus("Google not configured — local save only"); return }
         if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
         isSyncing = true; saveGoogleStatus("Syncing…")
         manager.withFreshToken(onToken = { token ->
@@ -285,7 +303,15 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("DraftLock", fontWeight = FontWeight.Bold) },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(painterResource(R.drawable.ic_trophy), null, tint = DraftLockColors.gold, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("DraftLock", fontWeight = FontWeight.Black)
+                            Spacer(Modifier.width(8.dp))
+                            Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent, modifier = Modifier.background(DraftLockColors.panel, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                    },
                     actions = {
                         TextButton(onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -346,56 +372,100 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
     val animatedWords by animateIntAsState(words.coerceAtLeast(0), spring(dampingRatio = 0.8f, stiffness = 300f), label = "words")
     val progress = (animatedWords.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(progress, tween(600, easing = EaseOutCubic), label = "progress")
-    LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    val lvl = (animatedWords / 500) + 1
+    val xpInLevel = animatedWords % 500
+    val shimmer = rememberInfiniteTransition(label = "shimmer").animateFloat(0f, 1f, infiniteRepeatable(tween(1500, easing = LinearEasing), repeatMode = RepeatMode.Restart), label = "shim")
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text("WRITE FIRST. DISTRACTIONS WAIT.", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text("Today", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.graphicsLayer { scaleX = 1f + animatedProgress * 0.02f; scaleY = 1f + animatedProgress * 0.02f }
-            ) {
-                Column(Modifier.padding(18.dp)) {
-                    Text("$animatedWords / $quota", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text("words completed", color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                    Spacer(Modifier.height(10.dp))
-                    LinearProgressIndicator(progress = { animatedProgress }, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onPrimaryContainer, trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
-                    Spacer(Modifier.height(10.dp))
-                    Button(onClick = onWrite) { Text("Continue writing") }
+            Card(colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), shape = RoundedCornerShape(20.dp), elevation = CardDefaults.cardElevation(8.dp), modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = 1f + animatedProgress * 0.012f; scaleY = 1f + animatedProgress * 0.012f }) {
+                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF1A2E1A), Color(0xFF151515)), shape = RoundedCornerShape(20.dp))).padding(18.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(painterResource(R.drawable.ic_flame), null, tint = Color(0xFFFF6B35), modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("STREAK", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                                Spacer(Modifier.width(8.dp))
+                                Text("$lvl LVL", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = DraftLockColors.gold, modifier = Modifier.background(Color(0xFF2A2410), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+                            }
+                            Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (complete) DraftLockColors.accent else DraftLockColors.neonPink, modifier = Modifier.background(if(complete) Color(0xFF1A2E1A) else Color(0xFF2A1020), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
+                        }
+                        Text("$animatedWords / $quota XP", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("Keep writing to level up — every word is XP", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                        Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF2A2A2A))) {
+                            Box(Modifier.fillMaxWidth(animatedProgress).height(14.dp).clip(RoundedCornerShape(8.dp)).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd))))
+                            Box(Modifier.fillMaxWidth().height(14.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha=0.18f), Color.Transparent), startX = shimmer.value*400f - 200f, endX = shimmer.value*400f + 200f)))
+                        }
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("$xpInLevel / 500 to next", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                            Text("${(progress*100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent)
+                        }
+                        Button(onClick = onWrite, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black)) { Icon(painterResource(R.drawable.ic_star), null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Continue Quest", fontWeight = FontWeight.Bold) }
+                    }
                 }
             }
         }
-        item { Text("Requirements", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-        item { RequirementCard("Writing", "$animatedWords / $quota words", words >= quota) }
-        items(requirements.filter { it.enabled }) { req -> RequirementCard(req.displayName, "${vm.usageMinutes[req.packageName] ?: 0} / ${req.requiredMinutes} min", (vm.usageMinutes[req.packageName] ?: 0) >= req.requiredMinutes) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MiniStatCard("Quests", "${requirements.size}", R.drawable.ic_gamepad, DraftLockColors.neonCyan, Modifier.weight(1f))
+                MiniStatCard("Bosses", "${lockedApps.size}", R.drawable.ic_lock_closed, DraftLockColors.neonPink, Modifier.weight(1f))
+                MiniStatCard("Logic", logic, R.drawable.ic_star, DraftLockColors.gold, Modifier.weight(1f))
+            }
+        }
+        item { Text("Active Quests", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black) }
+        item { RequirementCard("Main Quest — Writing", "$animatedWords / $quota XP", words >= quota, isMain = true) }
+        itemsIndexed(requirements.filter { it.enabled }) { idx, req ->
+            var visible by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) { delay((idx*45).toLong()); visible = true }
+            AnimatedVisibility(visible = visible, enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it/3 }) {
+                RequirementCard(req.displayName, "${vm.usageMinutes[req.packageName] ?: 0} / ${req.requiredMinutes} min", (vm.usageMinutes[req.packageName] ?: 0) >= req.requiredMinutes)
+            }
+        }
+        if (requirements.isEmpty()) item { Text("No quests yet — head to Arena to add apps.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted, modifier = Modifier.padding(8.dp)) }
         item {
             val statusScale by animateFloatAsState(if (complete) 1.02f else 1f, spring(dampingRatio = 0.6f, stiffness = 400f), label = "statusScale")
-            Card(modifier = Modifier.scale(statusScale)) {
-                Column(Modifier.padding(18.dp)) {
-                    Text("Status", style = MaterialTheme.typography.labelLarge)
-                    Text(if (complete) "UNLOCKED" else "LOCKED", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = if (complete) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                    AnimatedContent(targetState = complete, label = "statusText") { done ->
-                        Text(if (done) "All configured conditions are complete." else "$logic logic is active. Finish today's requirements to unlock the selected apps.")
+            Card(modifier = Modifier.scale(statusScale), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0xFF142010) else DraftLockColors.panel)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(if(complete) R.drawable.ic_trophy else R.drawable.ic_lock_closed), null, tint = if(complete) DraftLockColors.gold else DraftLockColors.muted, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (complete) "All bosses defeated!" else "Bosses are guarding", fontWeight = FontWeight.Bold)
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Text("Locked apps: ${lockedApps.count { it.enabled }}")
-                    if (!vm.blockingAvailable) Text("Blocking capability is not active. Device-owner/profile-owner setup is required for strong package suspension.", style = MaterialTheme.typography.bodySmall)
-                    if (!vm.usageAccess) TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) { Text("Enable Usage Access") }
-                    TextButton(onClick = onOverride) { Text("Emergency override") }
+                    AnimatedContent(targetState = complete, label = "statusText") { done ->
+                        Text(if (done) "All conditions clear — your apps are free." else "$logic gate: ${if(logic=="AND") "write AND all quests" else "write OR any quest"} to unlock.", style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                    }
+                    Text(vm.blockingDiagnostics, style = MaterialTheme.typography.bodySmall, color = if(vm.blockingAvailable) DraftLockColors.accent else DraftLockColors.neonPink)
+                    if (!vm.usageAccess) androidx.compose.material3.Button(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonCyan)) { Text("Enable Usage Access") }
+                    TextButton(onClick = onOverride) { Text("Emergency warp 15m") }
                 }
             }
         }
     }
 }
-
+@Composable private fun MiniStatCard(label:String, value:String, icon:Int, tint:Color, mod:Modifier) {
+    Card(mod = mod, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(value, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+        }
+    }
+}
 @androidx.compose.runtime.Composable
-private fun RequirementCard(name: String, value: String, complete: Boolean) {
-    val scale by animateFloatAsState(if (complete) 1f else 0.98f, spring(dampingRatio = 0.7f, stiffness = 300f), label = "cardScale")
-    Card(modifier = Modifier.scale(scale), colors = CardDefaults.cardColors(containerColor = if (complete) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold); Text(value, style = MaterialTheme.typography.bodyMedium) }
+private fun RequirementCard(name: String, value: String, complete: Boolean, isMain:Boolean=false) {
+    val scale by animateFloatAsState(if (complete) 1f else 0.99f, spring(dampingRatio = 0.7f, stiffness = 300f), label = "cardScale")
+    Card(modifier = Modifier.scale(scale).fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = if (complete) Color(0xFF1A2E1A) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(complete) 6.dp else 2.dp)) {
+        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(if(complete) DraftLockColors.accent else Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
+                Icon(painterResource(if(complete) R.drawable.ic_trophy else if(isMain) R.drawable.ic_star else R.drawable.ic_gamepad), null, tint = if(complete) Color.Black else DraftLockColors.muted, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold, maxLines = 1); Text(value, style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted) }
             AnimatedContent(targetState = complete, label = "check") { done ->
-                Text(if (done) "✓" else "—", style = MaterialTheme.typography.titleLarge, color = if (done) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                Box(Modifier.size(28.dp).clip(CircleShape).background(if(done) DraftLockColors.accent else Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
+                    Text(if (done) "✓" else "•", fontWeight = FontWeight.Black, color = if(done) Color.Black else DraftLockColors.muted)
+                }
             }
         }
     }
