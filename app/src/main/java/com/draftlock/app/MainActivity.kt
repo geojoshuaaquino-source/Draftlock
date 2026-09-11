@@ -3,12 +3,15 @@ package com.draftlock.app
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -595,12 +599,30 @@ private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
 private fun UnifiedAppRow(app: SimpleApp, req: AppRequirement?, locked: LockedApp?, minutes: Int, vm: DraftLockViewModel) {
     var showMinutes by remember { mutableStateOf(false) }
     var minutesVal by remember(req?.requiredMinutes ?: 30) { mutableStateOf(req?.requiredMinutes?.toFloat() ?: 30f) }
+    var iconBmp by remember(app.packageName) { mutableStateOf<Bitmap?>(null) }
+    val ctx = LocalContext.current
+    LaunchedEffect(app.packageName) {
+        withContext(Dispatchers.IO) {
+            try {
+                val d = ctx.packageManager.getApplicationIcon(app.packageName)
+                val bmp = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+                val c = Canvas(bmp)
+                d.setBounds(0, 0, 96, 96)
+                d.draw(c)
+                withContext(Dispatchers.Main) { iconBmp = bmp }
+            } catch (_: Exception) {}
+        }
+    }
     val isBoss = locked != null
     Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if(isBoss) Color(0xFF1E1218) else DraftLockColors.panel), elevation = CardDefaults.cardElevation(if(isBoss) 6.dp else 2.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.size(44.dp).clip(CircleShape).background(if(isBoss) Color(0xFF2A1020) else DraftLockColors.panelElevated), contentAlignment = Alignment.Center) {
-                    Text(app.label.take(1).uppercase(), fontWeight = FontWeight.Black, color = if(isBoss) DraftLockColors.neonPink else DraftLockColors.accent)
+                if (iconBmp != null) {
+                    Image(bitmap = iconBmp!!.asImageBitmap(), contentDescription = app.label, modifier = Modifier.size(44.dp).clip(CircleShape))
+                } else {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(if(isBoss) Color(0xFF2A1020) else DraftLockColors.panelElevated), contentAlignment = Alignment.Center) {
+                        Text(app.label.take(1).uppercase(), fontWeight = FontWeight.Black, color = if(isBoss) DraftLockColors.neonPink else DraftLockColors.accent)
+                    }
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
