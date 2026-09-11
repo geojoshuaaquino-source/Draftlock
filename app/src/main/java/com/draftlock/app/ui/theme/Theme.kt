@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 
 private val Bg = Color(0xFF080808)
 private val Panel = Color(0xFF151515)
@@ -47,9 +48,9 @@ private val DraftLockDarkColorScheme = darkColorScheme(
 private val DisplayFont = androidx.compose.ui.text.font.FontFamily.SansSerif
 private val MonoFont = androidx.compose.ui.text.font.FontFamily.Monospace
 val DraftLockTypography = Typography(
-    headlineSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = androidx.compose.ui.unit.sp(-0.5F)),
+    headlineSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = (-0.5).sp),
     titleMedium = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-    labelSmall = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, letterSpacing = androidx.compose.ui.unit.sp(0.4F)),
+    labelSmall = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, letterSpacing = 0.4.sp),
     bodySmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont)
 )
 
