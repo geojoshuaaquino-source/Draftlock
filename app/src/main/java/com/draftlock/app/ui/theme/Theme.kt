@@ -7,20 +7,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 
-private val Bg = Color(0xFF080808)
-private val Panel = Color(0xFF151515)
-private val PanelElevated = Color(0xFF1E1E1E)
-private val Line = Color(0xFF30302D)
-private val Ink = Color(0xFFF4F4F0)
-private val Muted = Color(0xFFA0A0A0) // improved contrast from 0xFF8B8B86 for accessibility
+// Identity: Ink Vault — typewriter + safe. Pro tool, game HUD.
+// Palette anchors from brief's canopy: ink paper + vault steel + lock lime.
+// 4–6 hex core: Ink #080808, Panel #151515, Paper #F4F4F0, Lime #B7FF4A, Steel #00E5FF, Alert #FF2E93, Gold #FFC93C
+private val Bg = Color(0xFF09090B) // vault ink
+private val Panel = Color(0xFF141418) // steel panel
+private val PanelElevated = Color(0xFF1E1E22) // brushed steel
+private val Line = Color(0xFF2A2A2E) // hairline vault seam
+private val Ink = Color(0xFFF4F4F0) // paper
+private val Muted = Color(0xFFA1A1A3)
 private val MutedAlt = Color(0xFF8B8B86)
-private val Accent = Color(0xFFB7FF4A) // lime XP
+private val Accent = Color(0xFFB7FF4A) // lock lime — the one memorable accent, keep quiet elsewhere
 private val AccentPressed = Color(0xFF9FE040)
-private val NeonCyan = Color(0xFF00E5FF)
-private val NeonPink = Color(0xFFFF2E93)
+private val NeonCyan = Color(0xFF22DDFF) // steel blue — subtle, not acid
+private val NeonPink = Color(0xFFFF2E93) // alert — only for BLOCKED
 private val Gold = Color(0xFFFFC93C)
 private val XpGradientStart = Color(0xFFB7FF4A)
-private val XpGradientEnd = Color(0xFF00E5FF)
+private val XpGradientEnd = Color(0xFF22DDFF)
 
 private val DraftLockDarkColorScheme = darkColorScheme(
     primary = Accent,
@@ -45,13 +48,17 @@ private val DraftLockDarkColorScheme = darkColorScheme(
     outlineVariant = Line.copy(alpha = 0.5f)
 )
 
-private val DisplayFont = androidx.compose.ui.text.font.FontFamily.SansSerif
-private val MonoFont = androidx.compose.ui.text.font.FontFamily.Monospace
+private val DisplayFont = androidx.compose.ui.text.font.FontFamily.SansSerif // will feel like Space Grotesk — geometric, typewriter-ish
+private val MonoFont = androidx.compose.ui.text.font.FontFamily.Monospace // vault HUD mono
 val DraftLockTypography = Typography(
-    headlineSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = (-0.5).sp),
-    titleMedium = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-    labelSmall = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, letterSpacing = 0.4.sp),
-    bodySmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont)
+    displaySmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, fontSize = 28.sp, lineHeight = 32.sp, letterSpacing = (-0.8).sp),
+    headlineSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, fontSize = 22.sp, lineHeight = 26.sp, letterSpacing = (-0.5).sp),
+    titleMedium = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 16.sp, letterSpacing = (-0.2).sp),
+    titleSmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 14.sp),
+    labelSmall = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.6.sp),
+    labelMedium = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, fontSize = 12.sp, letterSpacing = 0.4.sp),
+    bodySmall = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 13.sp, lineHeight = 18.sp),
+    bodyMedium = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 14.sp, lineHeight = 20.sp)
 )
 
 @Composable

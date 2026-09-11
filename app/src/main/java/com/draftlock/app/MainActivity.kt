@@ -70,6 +70,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.draftlock.app.ui.theme.DraftLockColors
 import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
@@ -325,56 +326,77 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
     LaunchedEffect(Unit) { while (true) { delay(30_000); vm.refreshUsage() } }
 
     DraftLockTheme {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(painterResource(R.drawable.ic_trophy), null, tint = DraftLockColors.gold, modifier = Modifier.size(22.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("DraftLock", fontWeight = FontWeight.Black)
-                            Spacer(Modifier.width(8.dp))
-                            Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent, modifier = Modifier.background(DraftLockColors.panel, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+        Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
+            // subtle vault grid — unique to Ink Vault identity, quiet
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF09090B), Color(0xFF0F0F12)))), contentAlignment = Alignment.TopCenter) {
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x0AFFFFFF), Color.Transparent), center = androidx.compose.ui.geometry.Offset(400f, 120f), radius = 800f)))
+            }
+            Scaffold(
+                containerColor = Color.Transparent,
+                topBar = {
+                    // Vault header — steel seam + lock lime as single memorable accent
+                    Surface(color = Color(0xFF0F0F12), tonalElevation = 0.dp, shadowElevation = 0.dp) {
+                        Column {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(DraftLockColors.panelElevated), contentAlignment = Alignment.Center) {
+                                    Icon(painterResource(R.drawable.ic_shield), null, tint = DraftLockColors.accent, modifier = Modifier.size(22.dp))
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("DRAFTLOCK", style = MaterialTheme.typography.labelMedium, color = Color.White, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black)
+                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Local vault"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                                }
+                                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(DraftLockColors.accent).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                    Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                TextButton(onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); context.startActivity(Intent(context, PrototypeActivity::class.java)) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Prototype", style = MaterialTheme.typography.labelSmall) }
+                            }
+                            Divider(color = DraftLockColors.line, thickness = 0.8.dp)
                         }
-                    },
-                    actions = {
-                        TextButton(onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            context.startActivity(Intent(context, PrototypeActivity::class.java))
-                        }) { Text("Preview") }
                     }
-                )
-            },
-            bottomBar = {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    Screen.values().forEach { item ->
-                        NavigationBarItem(
-                            selected = screen == item,
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                screen = item
-                            },
-                            icon = { Icon(painter = painterResource(id = item.iconRes), contentDescription = item.label, modifier = Modifier.size(22.dp)) },
-                            label = { Text(item.label, style = MaterialTheme.typography.labelSmall) }
-                        )
+                },
+                bottomBar = {
+                    // Pill navigation — distinct from default Material bar
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF15151A), shadowElevation = 12.dp, tonalElevation = 0.dp, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Screen.values().forEach { item ->
+                                    val selected = screen == item
+                                    Box(
+                                        Modifier.weight(1f).clip(RoundedCornerShape(20.dp))
+                                            .background(if (selected) DraftLockColors.accent else Color.Transparent)
+                                            .clickable {
+                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                screen = item
+                                            }
+                                            .padding(vertical = 10.dp), contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                            Icon(painterResource(id = item.iconRes), contentDescription = item.label, tint = if (selected) Color.Black else DraftLockColors.muted, modifier = Modifier.size(18.dp))
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.Black else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
-        ) { pad ->
-            Surface(Modifier.fillMaxSize().padding(pad)) {
-                AnimatedContent(
-                    targetState = screen,
-                    transitionSpec = {
-                        (fadeIn(tween(140)) togetherWith fadeOut(tween(110)))
-                    },
-                    label = "screenTransition"
-                ) { target ->
-                    when (target) {
-                        Screen.HOME -> HomeScreen(vm, todayWords, quota, requirements, lockedApps, logic, context, { screen = Screen.WRITE }, { showOverride = true })
-                        Screen.WRITE -> WriteScreen(vm, text, todayWords, quota, documentName)
-                        Screen.APPS -> UnifiedAppsScreen(vm, context)
-                        Screen.DOCS -> DocsScreen(vm)
-                        Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
+            ) { pad ->
+                Box(Modifier.fillMaxSize().padding(pad)) {
+                    AnimatedContent(
+                        targetState = screen,
+                        transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(110)) },
+                        label = "screenTransition"
+                    ) { target ->
+                        when (target) {
+                            Screen.HOME -> HomeScreen(vm, todayWords, quota, requirements, lockedApps, logic, context, { screen = Screen.WRITE }, { showOverride = true })
+                            Screen.WRITE -> WriteScreen(vm, text, todayWords, quota, documentName)
+                            Screen.APPS -> UnifiedAppsScreen(vm, context)
+                            Screen.DOCS -> DocsScreen(vm)
+                            Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
+                        }
                     }
                 }
             }
@@ -507,10 +529,32 @@ private fun RequirementCard(name: String, value: String, complete: Boolean, isMa
 @androidx.compose.runtime.Composable
 private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
     var draft by remember(text) { mutableStateOf(text) }
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(documentName, fontWeight = FontWeight.Bold); Text("${words.coerceAtLeast(0)} / $quota words") }; Text("Saved locally") }
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxSize(), placeholder = { Text("Start writing…") }, singleLine = false)
+    val progress = (words.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // vault paper header — pro tool, game accent only on progress
+        Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(DraftLockColors.ink), contentAlignment = Alignment.Center) {
+                        Icon(painterResource(R.drawable.ic_write), null, tint = DraftLockColors.bg, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(documentName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("$words / $quota words • ${(progress*100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                    }
+                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (progress >= 1f) DraftLockColors.accent else DraftLockColors.panelElevated).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        Text(if (progress >= 1f) "GOAL MET" else "WRITING", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (progress >= 1f) Color.Black else DraftLockColors.muted)
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF242428))) {
+                    Box(Modifier.fillMaxWidth(progress).height(6.dp).clip(RoundedCornerShape(6.dp)).background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd))))
+                }
+                Text("Every keystroke counts — bonus local docs also tally to daily goal. Gmail sync is optional.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+            }
+        }
+        OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxWidth().weight(1f), placeholder = { Text("Start writing — ink the vault…") }, shape = RoundedCornerShape(14.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line, focusedContainerColor = Color(0xFFFDFBF7), unfocusedContainerColor = Color(0xFFFDFBF7), focusedTextColor = Color(0xFF1A1A1E), unfocusedTextColor = Color(0xFF1A1A1E)))
+        Text("Professional: words tally instantly, no animations delay. Game art: lime progress + steel vault.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
     }
 }
 
@@ -813,17 +857,81 @@ private fun DocsScreen(vm: DraftLockViewModel) {
 
 @androidx.compose.runtime.Composable
 private fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int, logic: String, autoSave: Boolean, onOverride: () -> Unit) {
+    val context = LocalContext.current
     var quotaText by remember(quota) { mutableStateOf(quota.toString()) }
     var resetText by remember(resetMinutes) { mutableStateOf(resetMinutes.toString()) }
-    LazyColumn(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-        item { OutlinedTextField(value = quotaText, onValueChange = { quotaText = it.filter(Char::isDigit) }, label = { Text("Daily word quota") }, modifier = Modifier.fillMaxWidth()) }
-        item { Button(onClick = { vm.setQuota(quotaText.toIntOrNull() ?: quota) }) { Text("Save quota") } }
-        item { OutlinedTextField(value = resetText, onValueChange = { resetText = it.filter(Char::isDigit) }, label = { Text("Reset minutes after midnight (0–1439)") }, modifier = Modifier.fillMaxWidth()) }
-        item { Button(onClick = { vm.setResetMinutes(resetText.toIntOrNull()?.coerceIn(0, 1439) ?: resetMinutes) }) { Text("Save reset time") } }
-        item { Text("Requirement logic: $logic") }
-        item { Button(onClick = onOverride) { Text("Emergency override") } }
-        item { Text("Emergency override is intentionally inconvenient and unlocks selected apps for only 15 minutes.") }
-        item { Text("For strong app suspension, provision DraftLock as the device owner during device setup or testing, for example with adb dpm set-device-owner. Do this only on a device you control; device-owner provisioning changes device management state.") }
+    var clientIdText by remember { mutableStateOf(GoogleOAuthManager(context).effectiveClientId.let { if (it.startsWith("YOUR_") || it.startsWith("987654")) "" else it }) }
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(DraftLockColors.accent), contentAlignment = Alignment.Center) {
+                        Icon(painterResource(R.drawable.ic_shield), null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("Vault Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("Pro controls, game HUD finish", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                    }
+                }
+            }
+        }
+        item { Text("Writing", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
+        item {
+            Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panelElevated)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = quotaText, onValueChange = { quotaText = it.filter(Char::isDigit) }, label = { Text("Daily word quota") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp))
+                    Button(onClick = { vm.setQuota(quotaText.toIntOrNull() ?: quota) }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.accent, contentColor = Color.Black)) { Text("Save quota") }
+                    OutlinedTextField(value = resetText, onValueChange = { resetText = it.filter(Char::isDigit) }, label = { Text("Reset minutes after midnight (0–1439)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp))
+                    Button(onClick = { vm.setResetMinutes(resetText.toIntOrNull()?.coerceIn(0, 1439) ?: resetMinutes) }, modifier = Modifier.fillMaxWidth()) { Text("Save reset time") }
+                    Text("Logic: $logic • Auto-sync: ${if (autoSave) "ON" else "OFF"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                }
+            }
+        }
+        item { Text("Gmail Login — Normal flow", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
+        item {
+            Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) Color(0xFF0E1F14) else Color(0xFF1A1A1E))) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) DraftLockColors.accent else Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (vm.isGoogleConnected) "Gmail Connected" else "Not connected", fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(Modifier.weight(1f))
+                        Text(vm.isGoogleConfigured.toString(), style = MaterialTheme.typography.labelSmall, color = Color.Transparent)
+                    }
+                    Text(vm.syncStatus, style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
+                    if (!vm.isGoogleConnected) {
+                        Button(onClick = { vm.startGoogleAuth(context) }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)) { Icon(painterResource(R.drawable.ic_google), null, Modifier.size(16.dp)); Spacer(Modifier.width(8.dp)); Text("Sign in with Google — just like Gmail") }
+                        Text("One tap, pick your Google account, Allow. No paste needed if you build with GOOGLE_CLIENT_ID.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                    } else {
+                        Button(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.panelElevated, contentColor = Color.White)) { Text("Unlink Gmail") }
+                    }
+                    Divider(color = DraftLockColors.line)
+                    Text("Advanced — custom Client ID (optional)", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                    OutlinedTextField(value = clientIdText, onValueChange = { clientIdText = it }, label = { Text("xxx.apps.googleusercontent.com") }, placeholder = { Text("Leave blank to use baked demo ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            if (clientIdText.contains(".apps.googleusercontent.com")) {
+                                GoogleOAuthManager(context).setRuntimeClientId(clientIdText); vm.checkGoogleConnection(); vm.saveGoogleStatus("Client ID saved — tap Sign in")
+                            }
+                        }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.gold, contentColor = Color.Black)) { Text("Save ID") }
+                        TextButton(onClick = { clientIdText = ""; context.getSharedPreferences("draftlock_runtime", Context.MODE_PRIVATE).edit().remove("runtime_google_client_id").apply(); vm.checkGoogleConnection() }) { Text("Clear") }
+                    }
+                    Text("Create ID: Cloud Console → APIs & Services → Credentials → Create OAuth client → Web application. Or set GOOGLE_CLIENT_ID in local.properties / GitHub secret.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                }
+            }
+        }
+        item { Text("Blocking", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
+        item {
+            Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panel)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(vm.blockingDiagnostics, style = MaterialTheme.typography.bodySmall, color = if (vm.blockingAvailable) DraftLockColors.accent else DraftLockColors.neonPink)
+                    Button(onClick = { context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonPink)) { Text("Enable Popup Blocking") }
+                    Button(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.neonCyan, contentColor = Color.Black)) { Text("Enable Usage Access") }
+                    Button(onClick = onOverride, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2E), contentColor = Color.White)) { Text("Emergency override 15 min") }
+                }
+            }
+        }
+        item { Text("Identity: Ink Vault — paper + steel, one lime accent. Fun HUD, serious tool. No delays.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
     }
 }
