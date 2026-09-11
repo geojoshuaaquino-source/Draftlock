@@ -3,13 +3,13 @@ package com.draftlock.app
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,21 +19,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,16 +51,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.draftlock.app.ui.theme.DraftLockTheme
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,17 +69,38 @@ import com.draftlock.app.data.AppRequirement
 import com.draftlock.app.data.DraftLockDatabase
 import com.draftlock.app.data.LockedApp
 import com.draftlock.app.data.SettingsStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-private enum class Screen(val label: String) { HOME("Home"), WRITE("Write"), RULES("Rules"), DOCS("Docs"), SETTINGS("Settings") }
+private enum class Screen(val label: String, val iconRes: Int) {
+    HOME("Home", R.drawable.ic_home),
+    WRITE("Write", R.drawable.ic_write),
+    APPS("Apps", R.drawable.ic_rules),
+    DOCS("Docs", R.drawable.ic_docs),
+    SETTINGS("Settings", R.drawable.ic_analytics)
+}
 
 class MainActivity : ComponentActivity() {
+    private lateinit var oauthManager: GoogleOAuthManager
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        oauthManager = GoogleOAuthManager(this)
+        handleOAuthIntent(intent)
         setContent { DraftLockApp() }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleOAuthIntent(intent)
+    }
+    private fun handleOAuthIntent(intent: Intent?) {
+        if (intent == null) return
+        if (intent.data?.toString()?.contains("/oauth2redirect") == true || intent.hasExtra("net.openid.appauth.AuthorizationResponse")) {
+            oauthManager.handleResult(intent) { _, _ -> }
+        }
     }
 }
 
@@ -82,6 +109,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     private val store = SettingsStore(application)
     private val usage = UsageTracker(application)
     private val blocker = AppBlocker(application)
+    private val docsRepo = GoogleDocsRepository()
 
     val requirements = db.dao().observeRequirements().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val lockedApps = db.dao().observeLockedApps().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -100,6 +128,10 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var usageAccess by mutableStateOf(usage.hasUsageAccess())
     var blockingAvailable by mutableStateOf(blocker.canSuspendApps())
     var syncStatus by mutableStateOf("Local only")
+    var driveFiles by mutableStateOf<List<RemoteFile>>(emptyList())
+    var driveQuery by mutableStateOf("DND")
+    var isSyncing by mutableStateOf(false)
+    var isGoogleConnected by mutableStateOf(loadGoogleState() != null)
     private var lastTextWordCount = 0
 
     init {
@@ -144,8 +176,63 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun setGoogleAutoSave(value: Boolean) = viewModelScope.launch { store.setGoogleAutoSave(value) }
     fun addRequirement(req: AppRequirement) = viewModelScope.launch { db.dao().upsertRequirement(req); refreshUsage() }
     fun deleteRequirement(id: Long) = viewModelScope.launch { db.dao().deleteRequirement(id); refreshUsage() }
+    fun updateRequirementMinutes(id: Long, minutes: Int) = viewModelScope.launch {
+        val existing = requirements.value.find { it.id == id } ?: return@launch
+        db.dao().upsertRequirement(existing.copy(requiredMinutes = minutes.coerceIn(5, 480)))
+        refreshUsage()
+    }
     fun addLockedApp(app: LockedApp) = viewModelScope.launch { db.dao().upsertLockedApp(app); applyBlocking() }
     fun deleteLockedApp(pkg: String) = viewModelScope.launch { db.dao().deleteLockedApp(pkg); blocker.unsuspend(listOf(pkg)) }
+    fun isRequirement(pkg: String): AppRequirement? = requirements.value.find { it.packageName == pkg }
+    fun isLocked(pkg: String): LockedApp? = lockedApps.value.find { it.packageName == pkg }
+
+    private fun loadGoogleState() = try { GoogleOAuthManager(getApplication()).loadState() } catch (_: Exception) { null }
+    fun checkGoogleConnection() { isGoogleConnected = loadGoogleState() != null }
+    fun startGoogleAuth(context: Context) {
+        try { GoogleOAuthManager(context).startAuthorization(); saveGoogleStatus("Opening Google sign-in…") }
+        catch (e: Exception) { saveGoogleStatus(e.message ?: "Google sign-in failed") }
+    }
+    fun fetchDriveFiles(query: String = driveQuery) {
+        val manager = GoogleOAuthManager(getApplication())
+        if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
+        isSyncing = true; saveGoogleStatus("Searching Drive…")
+        manager.withFreshToken(onToken = { token ->
+            if (token == null) { isSyncing = false; saveGoogleStatus("Token failed"); return@withFreshToken }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val files = docsRepo.findFiles(token, query.ifBlank { "DND" })
+                    withContext(Dispatchers.Main) { driveFiles = files; saveGoogleStatus("Found ${files.size} docs"); isSyncing = false }
+                } catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Drive error: ${e.message}"); isSyncing = false } }
+            }
+        }, onError = { isSyncing = false; saveGoogleStatus(it) })
+    }
+    fun createGoogleDoc(name: String, onCreated: (String) -> Unit = {}) {
+        val manager = GoogleOAuthManager(getApplication())
+        if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
+        isSyncing = true; saveGoogleStatus("Creating \"$name\"…")
+        manager.withFreshToken(onToken = { token ->
+            if (token == null) { isSyncing = false; saveGoogleStatus("Auth error"); return@withFreshToken }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val id = docsRepo.createDocument(token, name, googleFolderId.value.ifBlank { null })
+                    withContext(Dispatchers.Main) { saveGoogleStatus("Created: $name"); setGoogleDocument(id); fetchDriveFiles(); onCreated(id); isSyncing = false }
+                } catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Create failed: ${e.message}"); isSyncing = false } }
+            }
+        }, onError = { isSyncing = false; saveGoogleStatus(it) })
+    }
+    fun syncTextToDoc(docId: String = googleDocumentId.value) {
+        val doc = docId.ifBlank { return }
+        val manager = GoogleOAuthManager(getApplication())
+        if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
+        isSyncing = true; saveGoogleStatus("Syncing…")
+        manager.withFreshToken(onToken = { token ->
+            if (token == null) { isSyncing = false; saveGoogleStatus("Auth error"); return@withFreshToken }
+            viewModelScope.launch(Dispatchers.IO) {
+                try { docsRepo.replaceDocument(token, doc, text.value); withContext(Dispatchers.Main) { saveGoogleStatus("Synced ${countWords(text.value)} words at ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"); isSyncing = false } }
+                catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Sync failed: ${e.message}"); isSyncing = false } }
+            }
+        }, onError = { isSyncing = false; saveGoogleStatus(it) })
+    }
 
     fun activateEmergencyOverride() = viewModelScope.launch {
         store.setOverride(System.currentTimeMillis() + 15 * 60_000L)
@@ -208,7 +295,7 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                 )
             },
             bottomBar = {
-                NavigationBar {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     Screen.values().forEach { item ->
                         NavigationBarItem(
                             selected = screen == item,
@@ -216,8 +303,8 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 screen = item
                             },
-                            icon = { Text(item.label.take(1)) },
-                            label = { Text(item.label) }
+                            icon = { Icon(painter = painterResource(id = item.iconRes), contentDescription = item.label, modifier = Modifier.size(22.dp)) },
+                            label = { Text(item.label, style = MaterialTheme.typography.labelSmall) }
                         )
                     }
                 }
@@ -235,8 +322,8 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
                     when (target) {
                         Screen.HOME -> HomeScreen(vm, todayWords, quota, requirements, lockedApps, logic, context, { screen = Screen.WRITE }, { showOverride = true })
                         Screen.WRITE -> WriteScreen(vm, text, todayWords, quota, documentName)
-                        Screen.RULES -> RulesScreen(vm, requirements, lockedApps, logic, context)
-                        Screen.DOCS -> DocsScreen(vm, documentName, googleAutoSave)
+                        Screen.APPS -> UnifiedAppsScreen(vm, context)
+                        Screen.DOCS -> DocsScreen(vm)
                         Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
                     }
                 }
@@ -325,50 +412,166 @@ private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota:
 }
 
 @androidx.compose.runtime.Composable
-private fun RulesScreen(vm: DraftLockViewModel, requirements: List<AppRequirement>, lockedApps: List<LockedApp>, logic: String, context: Context) {
-    val packageManager = context.packageManager
-    var showAddRequirement by remember { mutableStateOf(false) }
-    var showAddLocked by remember { mutableStateOf(false) }
-    val apps = remember(context) {
-        packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PackageManager.MATCH_ALL)
-            .map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }.filter { it.packageName != context.packageName }
-            .map { InstalledApp(it.packageName, packageManager.getApplicationLabel(it).toString(), packageManager.getApplicationIcon(it.packageName)) }
+private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
+    val requirements by vm.requirements.collectAsStateWithLifecycle()
+    val lockedApps by vm.lockedApps.collectAsStateWithLifecycle()
+    val logic by vm.logic.collectAsStateWithLifecycle()
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf("ALL") }
+    val pm = context.packageManager
+    val allApps = remember(context) {
+        pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PackageManager.MATCH_ALL)
+            .map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }
+            .filter { it.packageName != context.packageName }
+            .map { SimpleApp(it.packageName, pm.getApplicationLabel(it).toString()) }
             .sortedBy { it.label.lowercase() }
     }
-    LazyColumn(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("Requirements", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Row(verticalAlignment = Alignment.CenterVertically) { Text("Logic: "); TextButton(onClick = { vm.setLogic(if (logic == "AND") "OR" else "AND") }) { Text(logic) } } }
-        items(requirements) { req -> Card { Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(req.displayName, fontWeight = FontWeight.Bold); Text("${req.requiredMinutes} minutes") }; TextButton(onClick = { vm.deleteRequirement(req.id) }) { Text("Delete") } } } }
-        item { Button(onClick = { showAddRequirement = true }) { Text("Add app requirement") } }
-        item { Divider() }
-        item { Text("Locked apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-        items(lockedApps) { app -> Card { Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Text(app.displayName, Modifier.weight(1f)); TextButton(onClick = { vm.deleteLockedApp(app.packageName) }) { Text("Remove") } } } }
-        item { Button(onClick = { showAddLocked = true }) { Text("Add locked app") } }
-        item { Text("Strong blocking uses DevicePolicyManager package suspension when this app is device owner or profile owner. Android does not grant that capability to ordinary apps.") }
+    val filtered = remember(query, filter, allApps, requirements, lockedApps) {
+        allApps.filter {
+            (query.isBlank() || it.label.contains(query, true) || it.packageName.contains(query, true)) &&
+            when(filter) {
+                "REQUIRED" -> requirements.any { r -> r.packageName == it.packageName }
+                "BLOCKED" -> lockedApps.any { l -> l.packageName == it.packageName }
+                "AVAILABLE" -> requirements.none { r -> r.packageName == it.packageName } && lockedApps.none { l -> l.packageName == it.packageName }
+                else -> true
+            }
+        }
     }
-    if (showAddRequirement) AppPickerDialog("Add requirement", apps, onPick = { app -> vm.addRequirement(AppRequirement(packageName = app.packageName, displayName = app.label, requiredMinutes = 30)); showAddRequirement = false }, onDismiss = { showAddRequirement = false })
-    if (showAddLocked) AppPickerDialog("Lock an app", apps, onPick = { app -> vm.addLockedApp(LockedApp(app.packageName, app.label)); showAddLocked = false }, onDismiss = { showAddLocked = false })
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("All Apps", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    FilterChip(selected = logic == "AND", onClick = { vm.setLogic(if (logic == "AND") "OR" else "AND") }, label = { Text(logic, fontWeight = FontWeight.Bold) })
+                }
+                Text("${requirements.size} required • ${lockedApps.size} blocked • ${allApps.size} installed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Unlock needs: ${if (logic=="AND") "writing AND all required apps" else "writing OR any required app"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search apps…") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("ALL","REQUIRED","BLOCKED","AVAILABLE").forEach { f ->
+                        FilterChip(selected = filter==f, onClick = { filter = f }, label = { Text(f) })
+                    }
+                }
+            }
+        }
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)) {
+            items(filtered, key = { it.packageName }) { app ->
+                val req = requirements.find { it.packageName == app.packageName }
+                val locked = lockedApps.find { it.packageName == app.packageName }
+                val minutes = vm.usageMinutes[app.packageName] ?: 0
+                UnifiedAppRow(app, req, locked, minutes, vm)
+            }
+            if (filtered.isEmpty()) { item { Text("No apps match.", modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+            item { Text("Tap Require to track usage, Block to suspend until writing is done. Blocking needs device-owner.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp)) }
+        }
+    }
 }
 
-private data class InstalledApp(val packageName: String, val label: String, val icon: Drawable)
-
 @androidx.compose.runtime.Composable
-private fun AppPickerDialog(title: String, apps: List<InstalledApp>, onPick: (InstalledApp) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { LazyColumn(Modifier.height(420.dp)) { items(apps) { app -> Row(Modifier.fillMaxWidth().clickable { onPick(app) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Text(app.label); Spacer(Modifier.width(8.dp)); Text(app.packageName, style = MaterialTheme.typography.bodySmall) } } } }, confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+private fun UnifiedAppRow(app: SimpleApp, req: AppRequirement?, locked: LockedApp?, minutes: Int, vm: DraftLockViewModel) {
+    var showMinutes by remember { mutableStateOf(false) }
+    var minutesVal by remember(req?.requiredMinutes ?: 30) { mutableStateOf(req?.requiredMinutes?.toFloat() ?: 30f) }
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                androidx.compose.foundation.layout.Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                    Text(app.label.take(1).uppercase(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(app.label, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    if (req != null) Text("$minutes / ${req.requiredMinutes} min today", style = MaterialTheme.typography.bodySmall, color = if (minutes >= req.requiredMinutes) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (req != null) Icon(painter = painterResource(R.drawable.ic_analytics), contentDescription = null, tint = if (minutes >= req.requiredMinutes) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                if (locked != null) Icon(painter = painterResource(R.drawable.ic_lock_closed), contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                if (req == null) {
+                    Button(onClick = { vm.addRequirement(AppRequirement(packageName = app.packageName, displayName = app.label, requiredMinutes = 30)) }, modifier = Modifier.weight(1f)) { Text("Require") }
+                } else {
+                    Button(onClick = { showMinutes = !showMinutes }, modifier = Modifier.weight(1f), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) { Text("${req.requiredMinutes}m") }
+                    TextButton(onClick = { vm.deleteRequirement(req.id) }) { Text("Remove") }
+                }
+                if (locked == null) {
+                    Button(onClick = { vm.addLockedApp(LockedApp(app.packageName, app.label)) }, modifier = Modifier.weight(1f), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer)) { Text("Block", color = MaterialTheme.colorScheme.onErrorContainer) }
+                } else {
+                    Button(onClick = { vm.deleteLockedApp(locked.packageName) }, modifier = Modifier.weight(1f), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Unblock") }
+                }
+            }
+            if (showMinutes && req != null) {
+                Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(12.dp)) {
+                    Text("Required minutes: ${minutesVal.toInt()}m", style = MaterialTheme.typography.bodyMedium)
+                    Slider(value = minutesVal, onValueChange = { minutesVal = it }, valueRange = 5f..120f, steps = 22)
+                    Button(onClick = { vm.updateRequirementMinutes(req.id, minutesVal.toInt()); showMinutes = false }, modifier = Modifier.align(Alignment.End)) { Text("Save") }
+                }
+            }
+        }
+    }
 }
 
+private data class SimpleApp(val packageName: String, val label: String)
+
 @androidx.compose.runtime.Composable
-private fun DocsScreen(vm: DraftLockViewModel, documentName: String, autoSave: Boolean) {
+private fun DocsScreen(vm: DraftLockViewModel) {
+    val context = LocalContext.current
+    val documentName by vm.documentName.collectAsStateWithLifecycle()
+    val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
+    val text by vm.text.collectAsStateWithLifecycle()
+    val folderId by vm.googleFolderId.collectAsStateWithLifecycle()
+    val docId by vm.googleDocumentId.collectAsStateWithLifecycle()
     var name by remember(documentName) { mutableStateOf(documentName) }
-    var folder by remember { mutableStateOf("") }
+    var newDocName by remember { mutableStateOf("DND Chapter ${java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault()).format(java.util.Date())}") }
+    LaunchedEffect(Unit) { vm.checkGoogleConnection(); if (vm.isGoogleConnected) vm.fetchDriveFiles() }
     LazyColumn(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { Text("Google Docs", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-        item { Text("Google OAuth uses a browser-based authorization flow. DraftLock never asks for or stores your Google password.") }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = if (vm.isGoogleConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painter = painterResource(R.drawable.ic_google), contentDescription = null, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(if (vm.isGoogleConnected) "Google Connected" else "Not Connected", fontWeight = FontWeight.Bold)
+                        Text(vm.syncStatus, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (!vm.isGoogleConnected) Button(onClick = { vm.startGoogleAuth(context); vm.checkGoogleConnection() }) { Text("Connect") }
+                    else TextButton(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection(); vm.saveGoogleStatus("Disconnected") }) { Text("Disconnect") }
+                }
+            }
+        }
+        item { Text("Active Document", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Document name") }, modifier = Modifier.fillMaxWidth()) }
-        item { OutlinedTextField(value = folder, onValueChange = { folder = it }, label = { Text("Google Drive folder ID (optional)") }, modifier = Modifier.fillMaxWidth()) }
-        item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Automatic save", Modifier.weight(1f)); Switch(checked = autoSave, onCheckedChange = vm::setGoogleAutoSave) } }
-        item { Button(onClick = { vm.setDocumentName(name); vm.setGoogleFolder(folder); vm.saveGoogleStatus("Destination saved locally") }) { Text("Save destination") } }
-        item { Text("Sync: ${vm.syncStatus}") }
-        item { Text("The actual Drive/Docs calls use the official APIs. A Google OAuth client ID must be supplied in local.properties as GOOGLE_CLIENT_ID before account authorization can be completed.") }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { vm.setDocumentName(name); vm.saveGoogleStatus("Saved locally") }, modifier = Modifier.weight(1f)) { Text("Save Name") }
+            Button(onClick = { vm.syncTextToDoc() }, enabled = vm.isGoogleConnected && !vm.isSyncing && docId.isNotBlank()) { Text(if (vm.isSyncing) "Syncing…" else "Sync Now") }
+        } }
+        item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Auto-save to Docs", Modifier.weight(1f)); Switch(checked = autoSave, onCheckedChange = vm::setGoogleAutoSave) } }
+        item { Divider() }
+        item { Text("Drive Library", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = vm.driveQuery, onValueChange = { vm.driveQuery = it }, label = { Text("Filter (prefix)") }, modifier = Modifier.weight(1f), singleLine = true)
+            Button(onClick = { vm.fetchDriveFiles() }, enabled = vm.isGoogleConnected && !vm.isSyncing) { Text("Search") }
+        } }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(value = newDocName, onValueChange = { newDocName = it }, label = { Text("New doc name") }, modifier = Modifier.weight(1f), singleLine = true)
+            Button(onClick = { if (newDocName.isNotBlank()) vm.createGoogleDoc(newDocName) { newDocName = "" } }, enabled = vm.isGoogleConnected && !vm.isSyncing) { Text("Create") }
+        } }
+        if (vm.isSyncing) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
+        items(vm.driveFiles) { file ->
+            Card(modifier = Modifier.fillMaxWidth().clickable { vm.setGoogleDocument(file.id); vm.setDocumentName(file.name); vm.saveGoogleStatus("Selected ${file.name}") }) {
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painter = painterResource(R.drawable.ic_docs), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(file.name, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("Edited ${file.modifiedTime.take(10)} • ${file.id.take(8)}…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (file.id == docId) Icon(painter = painterResource(R.drawable.ic_lock_open), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+        if (vm.driveFiles.isEmpty() && vm.isGoogleConnected) item { Text("No docs found. Try search or create one.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+        item { Text("Local words: ${text.split(Regex("\\s+")).count { it.isNotBlank() }} • ${if (autoSave) "Auto-sync ON" else "Manual sync"} • Folder ID: ${folderId.ifBlank { "(root)" }}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Google Docs integration uses official Drive file + Docs batchUpdate APIs. Token stored encrypted via AndroidKeyStore.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
