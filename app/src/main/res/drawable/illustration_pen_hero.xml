@@ -1,8 +1,8 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="200dp" android:height="140dp" android:viewportWidth="200" android:viewportHeight="140">
 <!-- Obsidian pen hero image -->
-<path android:fillColor="#14141C" android:strokeColor="#242430" android:strokeWidth="1.2" android:pathData="M20,20 H180 R12,12 0,0 1,192,32 V108 R12,12 0,0 1,180,120 H20 R12,12 0,0 1,8,108 V32 R12,12 0,0 1,20,20 Z"/>
+<path android:fillColor="#14141C" android:strokeColor="#242430" android:strokeWidth="1.2" android:pathData="M20,20 L180,20 L180,120 L20,120 Z"/>
 <!-- paper -->
-<path android:fillColor="#F2F0EB" android:pathData="M30,32 H170 R6,6 0,0 1,176,38 V92 R6,6 0,0 1,170,98 H30 R6,6 0,0 1,24,92 V38 R6,6 0,0 1,30,32 Z"/>
+<path android:fillColor="#F2F0EB" android:pathData="M30,32 L170,32 L170,98 L30,98 Z"/>
 <path android:fillColor="#9AA0A8" android:fillAlpha="0.3" android:pathData="M38,48 H162 M38,58 H162 M38,68 H120 M38,78 H140"/>
 <!-- pen diagonal -->
 <path android:fillColor="#D4FF32" android:pathData="M128,86 L156,58 L164,66 L136,94 Z"/>

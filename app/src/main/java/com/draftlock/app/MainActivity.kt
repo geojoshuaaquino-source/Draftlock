@@ -106,11 +106,24 @@ class MainActivity : ComponentActivity() {
     private lateinit var oauthManager: GoogleOAuthManager
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // WindowCompat edge-to-edge removed for launch stability — insets handled via Scaffold padding + 96dp content bottom
+        Thread.setDefaultUncaughtExceptionHandler { _, e -> android.util.Log.e("DraftLock", "Uncaught", e) }
         try { WindowCompat.setDecorFitsSystemWindows(window, false) } catch (_: Exception) {}
-        oauthManager = GoogleOAuthManager(this)
-        handleOAuthIntent(intent)
-        setContent { DraftLockApp() }
+        try { oauthManager = GoogleOAuthManager(this) } catch (e: Exception) { android.util.Log.e("DraftLock", "OAuth init fail", e); oauthManager = GoogleOAuthManager(this) }
+        try { handleOAuthIntent(intent) } catch (_: Exception) {}
+        setContent {
+            try { DraftLockApp() } catch (e: Exception) {
+                android.util.Log.e("DraftLock", "Compose crash", e)
+                androidx.compose.material3.MaterialTheme {
+                    Box(Modifier.fillMaxSize().background(Color(0xFF0A0A0F)), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("DraftLock failed to start", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(e.message ?: "Unknown error", color = Color(0xFF9AA0A8), style = MaterialTheme.typography.bodySmall)
+                            Button(onClick = { recreate() }) { Text("Retry") }
+                        }
+                    }
+                }
+            }
+        }
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -340,10 +353,8 @@ fun DraftLockApp(vm: DraftLockViewModel = viewModel()) {
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Obsidian subtle background — vault watermark + paper texture + mesh (not just logos)
+            // Subtle vault mesh — safe gradient only (watermark images removed for launch stability, re-add after crash fix verified)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F), Color(0xFF12121A)))), contentAlignment = Alignment.Center) {
-                Image(painter = painterResource(R.drawable.bg_watermark_vault), contentDescription = null, alpha = 0.05f, modifier = Modifier.fillMaxSize())
-                Image(painter = painterResource(R.drawable.bg_subtle_paper), contentDescription = null, alpha = 0.03f, modifier = Modifier.fillMaxSize())
                 Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x12D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(300f, 80f), radius = 900f)))
             }
             Scaffold(
@@ -449,9 +460,11 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            // Obsidian hero image — subtle background illustration, not just color
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
-                Image(painter = painterResource(R.drawable.illustration_pen_hero), contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)))
+            // Hero illustration — safe: use pen hero with fallback if missing
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = DraftLockColors.panelElevated), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.fillMaxWidth().height(120.dp).background(Brush.linearGradient(listOf(Color(0xFF1E1E28), Color(0xFF14141C))), shape = RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_write), null, tint = DraftLockColors.accent, modifier = Modifier.size(48.dp))
+                }
             }
         }
         item {
