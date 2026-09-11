@@ -32,8 +32,8 @@ gcloud auth login
 2. `OAuth consent screen` → External → App name `DraftLock` → add `openid email profile drive.file documents` → Test users → add your Gmail
 3. `Credentials → Create OAuth client → Web application` → Name `DraftLock Web`
    - **Authorized JavaScript origins:** leave **empty**
-   - **Authorized redirect URIs:** **one line:** `com.googleusercontent.apps.<YOUR_PREFIX>:/oauth2redirect` (where `<YOUR_PREFIX>` is before `.apps.googleusercontent.com` in the ID you’ll get)
-4. Copy `Client ID: xxx.apps.googleusercontent.com` → `echo "GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com" > local.properties` (or paste in-app `Settings → Advanced Client ID` → no rebuild, or `Docs → Enter Client ID`)
+   - **Authorized redirect URIs:** **one line:** `com.googleusercontent.apps.149732972265-i4i3hi7vfccba5c2ig4cavt5jitd1kat:/oauth2redirect`
+4. Copy `Client ID: 149732972265-i4i3hi7vfccba5c2ig4cavt5jitd1kat.apps.googleusercontent.com` is already baked in this repo (`app/build.gradle.kts:17` fallback + `local.properties`). If you rotate, `echo "GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com" > local.properties` (or paste in-app `Settings → Advanced Client ID` → no rebuild, or `Docs → Enter Client ID`)
 
 Build bakes `BuildConfig.GOOGLE_CLIENT_ID` + `manifestPlaceholders appAuthRedirectScheme` (`app/build.gradle.kts:14` `env` > `local.properties` > placeholder, `GoogleOAuthManager.kt:20` runtime pref wins). AppAuth PKCE via `accounts.google.com` requests `openid email profile drive.file documents`.
 
