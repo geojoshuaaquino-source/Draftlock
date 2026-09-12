@@ -1,0 +1,6 @@
+<!-- Editor halftone dark — subtle lime dots 6% on ink, linked to Write terminal -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="60dp" android:height="60dp" android:viewportWidth="60" android:viewportHeight="60">
+  <path android:fillColor="#111114" android:pathData="M0,0h60v60h-60z"/>
+  <path android:fillColor="#0AD4FF32" android:pathData="M10,10 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z M30,10 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z M50,10 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z M20,30 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z M40,30 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z M10,50 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z M30,50 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z M50,50 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0z"/>
+  <path android:strokeColor="#1E1E24" android:strokeWidth="0.5" android:pathData="M0,0 H60 M0,30 H60 M0,0 V60 M30,0 V60"/>
+</vector>

@@ -295,18 +295,42 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
     }
     fun syncTextToDoc(docId: String = googleDocumentId.value) {
-        val doc = docId.ifBlank { saveGoogleStatus("Select a scroll first"); return }
+        val doc = docId.ifBlank { saveGoogleStatus("Pick a doc first — use picker below"); return }
         val manager = GoogleOAuthManager(getApplication())
         if (!manager.isConfigured) { saveGoogleStatus("Google not configured — local save only"); return }
         if (manager.loadState() == null) { saveGoogleStatus("Connect Google first"); return }
-        isSyncing = true; saveGoogleStatus("Syncing…")
+        isSyncing = true; saveGoogleStatus("Saving to ${documentName.value.ifBlank { doc.take(8) }}…")
         manager.withFreshToken(onToken = { token ->
             if (token == null) { isSyncing = false; saveGoogleStatus("Auth error"); return@withFreshToken }
             viewModelScope.launch(Dispatchers.IO) {
-                try { docsRepo.replaceDocument(token, doc, text.value); withContext(Dispatchers.Main) { saveGoogleStatus("Synced ${countWords(text.value)} words at ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"); isSyncing = false } }
-                catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Sync failed: ${e.message}"); isSyncing = false } }
+                try { docsRepo.replaceDocument(token, doc, text.value); withContext(Dispatchers.Main) { saveGoogleStatus("Saved ${countWords(text.value)}w → ${documentName.value} at ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())} ✓"); isSyncing = false } }
+                catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Save failed: ${e.message}"); isSyncing = false } }
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
+    }
+    fun loadDocContent(docId: String, docName: String) {
+        val manager = GoogleOAuthManager(getApplication())
+        if (!manager.isConfigured || manager.loadState()==null) { saveGoogleStatus("Connect Gmail first"); return }
+        isSyncing = true; saveGoogleStatus("Opening $docName…")
+        manager.withFreshToken(onToken = { token ->
+            if (token==null) { isSyncing=false; saveGoogleStatus("Auth error"); return@withFreshToken }
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val body = docsRepo.getDocumentText(token, docId)
+                    withContext(Dispatchers.Main) {
+                        setGoogleDocument(docId); setDocumentName(docName)
+                        store.setDocumentText(body); lastTextWordCount = countWords(body)
+                        saveGoogleStatus("Loaded $docName (${countWords(body)}w) — edit & save"); isSyncing=false
+                    }
+                } catch (e: Exception) { withContext(Dispatchers.Main){ saveGoogleStatus("Open failed: ${e.message}"); isSyncing=false } }
+            }
+        }, onError = { isSyncing=false; saveGoogleStatus(it) })
+    }
+    fun saveAsNewDoc(name: String) {
+        if (name.isBlank()) { saveGoogleStatus("Enter a name for new doc"); return }
+        createGoogleDoc(name) { newId ->
+            viewModelScope.launch { delay(300); syncTextToDoc(newId) }
+        }
     }
 
     fun activateEmergencyOverride() = viewModelScope.launch {
@@ -469,7 +493,9 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
     LazyColumn(Modifier.fillMaxSize().background(DraftLockColors.bg), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 84.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             // Editorial masthead — huge ink number, not glass card illustration
-            Column(Modifier.fillMaxWidth().background(DraftLockColors.panel).padding(14.dp).padding(horizontal = 2.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.fillMaxWidth().background(DraftLockColors.panel)) {
+                Image(painterResource(R.drawable.bg_vault_grid_dark), null, modifier = Modifier.matchParentSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.28f)
+                Column(Modifier.padding(14.dp).padding(horizontal = 2.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("INK VAULT", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black)
                     Box(Modifier.background(if (isUnlocked) DraftLockColors.accent else Color(0xFF1A1A1E)).padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -495,6 +521,7 @@ private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requireme
                         Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(18.dp))
                         Text(if (isUnlocked) "CONTINUE WRITING — VAULT OPEN" else "WRITE TO UNLOCK →", fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 0.6.sp, fontSize = 12.sp)
                     }
+                }
                 }
             }
         }
@@ -681,25 +708,89 @@ private fun RequirementRow(name: String, current: Int, required: Int, complete: 
 @androidx.compose.runtime.Composable
 private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
     var draft by remember(text) { mutableStateOf(text) }
+    var nameInput by remember(documentName) { mutableStateOf(documentName) }
+    var showPicker by remember { mutableStateOf(false) }
+    var pickQuery by remember { mutableStateOf("") }
     val progress = (words.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    val filteredDocs = remember(vm.driveFiles, pickQuery) { com.draftlock.app.data.DocsFilter.filter(vm.driveFiles, pickQuery) }
     Column(Modifier.fillMaxSize().background(DraftLockColors.bg).padding(horizontal = 12.dp, vertical = 10.dp).padding(bottom = 72.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Terminal header — ink, sharp 0, mono
+        // Linked background — subtle grid/halftone behind header (asset link)
         Box(Modifier.fillMaxWidth().background(DraftLockColors.panel).padding(10.dp)) {
+            // background asset linked: vault grid 4% opacity
+            Box(Modifier.matchParentSize().background(Brush.linearGradient(listOf(Color(0x08FFFFFF), Color.Transparent))))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(Modifier.size(32.dp).background(DraftLockColors.accent), contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(16.dp)) }
                 Column(Modifier.weight(1f)) {
-                    Text(documentName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 0.6.sp)
-                    Text("$words / $quota  •  ${(progress*100).toInt()}%  •  ${if(progress>=1f) "VAULT OPEN" else "SEALED"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+                    Text(documentName.ifBlank { "Untitled Vault" }, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 0.6.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
+                    Text("$words / $quota  •  ${(progress*100).toInt()}%  •  ${if(progress>=1f) "VAULT OPEN" else "SEALED"} • ${vm.syncStatus.take(22)}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
                 }
                 Box(Modifier.background(if (progress>=1f) DraftLockColors.accent else Color(0xFF1A1A1E)).padding(horizontal=8.dp, vertical=4.dp)) { Text(if(progress>=1f) "GOAL" else "INK", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if(progress>=1f) Color.Black else DraftLockColors.muted, fontSize=10.sp) }
             }
         }
         Box(Modifier.fillMaxWidth().height(4.dp).background(Color(0xFF1A1A1E))) { Box(Modifier.fillMaxWidth(progress).height(4.dp).background(DraftLockColors.accent)) }
-        // Editor — true dark, mono, sharp 0, hairline
-        Box(Modifier.fillMaxWidth().weight(1f).background(DraftLockColors.panel).padding(1.dp).background(DraftLockColors.bg)) {
-            OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxSize(), placeholder = { Text("ink the vault… the steel listens.", color = DraftLockColors.muted, style = MaterialTheme.typography.bodySmall) }, shape = RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.line, unfocusedBorderColor = DraftLockColors.line, focusedContainerColor = Color(0xFF111114), unfocusedContainerColor = Color(0xFF111114), focusedTextColor = DraftLockColors.ink, unfocusedTextColor = DraftLockColors.ink, cursorColor = DraftLockColors.accent))
+        // Picker + name — pick what to access, name what you save
+        Box(Modifier.fillMaxWidth().background(DraftLockColors.panel).padding(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, label = { Text("DOC NAME", style = MaterialTheme.typography.labelSmall, letterSpacing=0.8.sp) }, placeholder = { Text("e.g. Chapter 3 — The Vault", color=DraftLockColors.muted, fontSize=12.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line, focusedContainerColor = Color(0xFF111114), unfocusedContainerColor = Color(0xFF111114), focusedTextColor = DraftLockColors.ink, unfocusedTextColor = DraftLockColors.ink, cursorColor = DraftLockColors.accent))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.weight(1f).height(40.dp).background(DraftLockColors.bg).clickable { showPicker = true }.padding(horizontal=10.dp), contentAlignment = Alignment.CenterStart) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(painterResource(R.drawable.ic_docs), null, tint=DraftLockColors.accent, modifier=Modifier.size(14.dp))
+                            Text(if (vm.isGoogleConnected) "PICK DOC  •  ${vm.driveFiles.size} linked" else "CONNECT GMAIL TO PICK", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=if(vm.isGoogleConnected) DraftLockColors.ink else DraftLockColors.muted, fontSize=10.sp, letterSpacing=0.6.sp)
+                        }
+                    }
+                    Box(Modifier.weight(1f).height(40.dp).background(DraftLockColors.accent).clickable { vm.setDocumentName(nameInput.ifBlank { "Untitled Vault" }); vm.saveGoogleStatus("Name set: ${nameInput.take(18)}") }, contentAlignment = Alignment.Center) { Text("APPLY NAME", fontWeight=FontWeight.Black, color=Color.Black, fontSize=11.sp, letterSpacing=0.6.sp) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.weight(1f).height(42.dp).background(if (vm.isSyncing) Color(0xFF1A1A1E) else DraftLockColors.accent).clickable(enabled = !vm.isSyncing) { vm.syncTextToDoc() }, contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (vm.isSyncing) androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth=2.dp, color=DraftLockColors.muted) else Icon(painterResource(R.drawable.ic_docs), null, tint=Color.Black, modifier=Modifier.size(14.dp))
+                            Text(if(vm.isSyncing) "SAVING…" else "SAVE TO DOC", fontWeight=FontWeight.Black, color=if(vm.isSyncing) DraftLockColors.muted else Color.Black, fontSize=11.sp)
+                        }
+                    }
+                    Box(Modifier.weight(1f).height(42.dp).background(DraftLockColors.panelElevated).clickable { vm.saveAsNewDoc(nameInput) }, contentAlignment = Alignment.Center) { Text("SAVE AS NEW", fontWeight=FontWeight.Black, color=DraftLockColors.ink, fontSize=11.sp) }
+                    Box(Modifier.weight(0.7f).height(42.dp).background(Color(0xFF1A1A1E)).clickable { if(vm.googleDocumentId.value.isNotBlank()) vm.loadDocContent(vm.googleDocumentId.value, vm.documentName.value) }, contentAlignment = Alignment.Center) { Text("RELOAD", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=DraftLockColors.muted, fontSize=10.sp) }
+                }
+                if (!vm.isGoogleConnected) Text("Gmail not linked — tap PICK DOC to connect, then choose a chapter to edit. Local vault saves instantly; Drive saves on SAVE.", style = MaterialTheme.typography.labelSmall, color=DraftLockColors.muted, fontSize=10.sp)
+            }
         }
-        Text("Dark terminal — no light flash. Every keystroke inks the vault.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+        // Editor — true dark, mono, sharp 0, hairline with linked grid/halftone assets
+        Box(Modifier.fillMaxWidth().weight(1f).background(DraftLockColors.panel).padding(1.dp).background(Color(0xFF0F0F12))) {
+            Image(painterResource(R.drawable.bg_editor_halftone_dark), null, modifier = Modifier.matchParentSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.42f)
+            Box(Modifier.matchParentSize().background(Brush.radialGradient(listOf(Color(0x04D4FF32), Color.Transparent), radius=600f)))
+            OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxSize().padding(2.dp), placeholder = { Text("ink the vault… the steel listens. pick a doc above, name it, save.", color = DraftLockColors.muted, style = MaterialTheme.typography.bodySmall) }, shape = RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedTextColor = DraftLockColors.ink, unfocusedTextColor = DraftLockColors.ink, cursorColor = DraftLockColors.accent))
+        }
+        Text("Pick → Name → Save. Edit any chapter, dark terminal, vault sealed until goal.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)
+    }
+    if (showPicker) {
+        androidx.compose.material3.AlertDialog(onDismissRequest = { showPicker = false }, title = { Text("Pick a doc to access", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Black, letterSpacing=0.8.sp) }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                if (!vm.isGoogleConnected) {
+                    Text("Connect Gmail first to see Drive chapters.", color=DraftLockColors.muted, style=MaterialTheme.typography.bodySmall)
+                    Box(Modifier.fillMaxWidth().background(DraftLockColors.accent).clickable { showPicker=false; vm.startGoogleAuth(androidx.compose.ui.platform.LocalContext.current) }.padding(12.dp), contentAlignment=Alignment.Center) { Text("CONNECT GMAIL", fontWeight=FontWeight.Black, color=Color.Black) }
+                } else {
+                    OutlinedTextField(value = pickQuery, onValueChange = { pickQuery = it }, placeholder = { Text("Filter docs…", color=DraftLockColors.muted) }, modifier = Modifier.fillMaxWidth(), singleLine=true, shape=RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor=DraftLockColors.accent, unfocusedBorderColor=DraftLockColors.line, focusedContainerColor=Color(0xFF111114), unfocusedContainerColor=Color(0xFF111114), focusedTextColor=DraftLockColors.ink, unfocusedTextColor=DraftLockColors.ink))
+                    if (vm.isSyncing) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth(), color=DraftLockColors.accent, trackColor=DraftLockColors.line)
+                    LazyColumn(Modifier.fillMaxWidth().height(240.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(filteredDocs, key = { it.id }) { file ->
+                            val selected = file.id == vm.googleDocumentId.value
+                            Box(Modifier.fillMaxWidth().background(if(selected) Color(0xFF141A14) else DraftLockColors.panel).clickable { vm.loadDocContent(file.id, file.name); pickQuery=""; showPicker=false }.padding(10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(Modifier.width(3.dp).height(28.dp).background(if(selected) DraftLockColors.accent else DraftLockColors.line))
+                                    Column(Modifier.weight(1f)) { Text(file.name, fontWeight=FontWeight.Bold, maxLines=1, overflow=TextOverflow.Ellipsis, style=MaterialTheme.typography.titleSmall, color=Color.White); Text("${file.modifiedTime.take(10)} • ${file.id.take(8)}", style=MaterialTheme.typography.labelSmall, color=DraftLockColors.muted, fontSize=10.sp) }
+                                    if (selected) Icon(painterResource(R.drawable.ic_trophy), null, tint=DraftLockColors.accent, modifier=Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        if (filteredDocs.isEmpty()) item { Text("No docs match filter — try another name or create new.", style=MaterialTheme.typography.labelSmall, color=DraftLockColors.muted) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(value = pickQuery, onValueChange = { pickQuery = it }, label = { Text("New doc name", style=MaterialTheme.typography.labelSmall) }, modifier = Modifier.weight(1f), singleLine=true, shape=RoundedCornerShape(0.dp))
+                        Box(Modifier.background(DraftLockColors.accent).clickable { if(pickQuery.isNotBlank()) { vm.saveAsNewDoc(pickQuery); showPicker=false } }.padding(horizontal=12.dp, vertical=10.dp)) { Text("CREATE", fontWeight=FontWeight.Black, color=Color.Black, fontSize=11.sp) }
+                    }
+                }
+            }
+        }, confirmButton = { androidx.compose.material3.TextButton(onClick = { showPicker=false }) { Text("Close") } }, dismissButton = {})
     }
 }
 

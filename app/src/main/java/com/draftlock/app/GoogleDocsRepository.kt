@@ -78,6 +78,23 @@ class GoogleDocsRepository {
         }
     }
 
+    fun getDocumentText(accessToken: String, documentId: String): String {
+        val json = JSONObject(request(accessToken, "GET", "$DOCS_BASE/documents/$documentId"))
+        val body = json.optJSONObject("body") ?: return ""
+        val content = body.optJSONArray("content") ?: return ""
+        val sb = StringBuilder()
+        for (i in 0 until content.length()) {
+            val paragraph = content.optJSONObject(i)?.optJSONObject("paragraph") ?: continue
+            val elements = paragraph.optJSONArray("elements") ?: continue
+            for (j in 0 until elements.length()) {
+                val textRun = elements.optJSONObject(j)?.optJSONObject("textRun") ?: continue
+                sb.append(textRun.optString("content", ""))
+            }
+        }
+        // Docs adds trailing \n
+        return sb.toString().trimEnd('\n')
+    }
+
     fun findFiles(accessToken: String, namePrefix: String): List<RemoteFile> {
         val escapedName = namePrefix.replace("'", "\\'")
         val query = "trashed = false and mimeType = '$DOC_MIME' and name contains '$escapedName'"
