@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -32,10 +33,22 @@
             </intent-filter>
         </activity>
 
+        <!-- AppAuth 0.11.1 has an Android 14 task/recreation issue with this activity.
+             singleInstance is the documented workaround for the affected flow. -->
+        <activity
+            android:name="net.openid.appauth.AuthorizationManagementActivity"
+            android:launchMode="singleInstance"
+            tools:replace="android:launchMode" />
+
+        <activity
+            android:name=".OAuthCompletionActivity"
+            android:exported="false"
+            android:launchMode="standard"
+            android:theme="@style/Theme.DraftLock" />
+
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTask">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
