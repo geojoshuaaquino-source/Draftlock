@@ -33,13 +33,6 @@
             </intent-filter>
         </activity>
 
-        <!-- AppAuth 0.11.1 has an Android 14 task/recreation issue with this activity.
-             singleInstance is the documented workaround for the affected flow. -->
-        <activity
-            android:name="net.openid.appauth.AuthorizationManagementActivity"
-            android:launchMode="singleInstance"
-            tools:replace="android:launchMode" />
-
         <activity
             android:name=".OAuthCompletionActivity"
             android:exported="false"
