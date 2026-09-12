@@ -707,6 +707,7 @@ private fun RequirementRow(name: String, current: Int, required: Int, complete: 
 
 @androidx.compose.runtime.Composable
 private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
+    val ctx = LocalContext.current
     var draft by remember(text) { mutableStateOf(text) }
     var nameInput by remember(documentName) { mutableStateOf(documentName) }
     var showPicker by remember { mutableStateOf(false) }
@@ -767,7 +768,7 @@ private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota:
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 if (!vm.isGoogleConnected) {
                     Text("Connect Gmail first to see Drive chapters.", color=DraftLockColors.muted, style=MaterialTheme.typography.bodySmall)
-                    Box(Modifier.fillMaxWidth().background(DraftLockColors.accent).clickable { showPicker=false; vm.startGoogleAuth(androidx.compose.ui.platform.LocalContext.current) }.padding(12.dp), contentAlignment=Alignment.Center) { Text("CONNECT GMAIL", fontWeight=FontWeight.Black, color=Color.Black) }
+                    Box(Modifier.fillMaxWidth().background(DraftLockColors.accent).clickable { showPicker=false; vm.startGoogleAuth(ctx) }.padding(12.dp), contentAlignment=Alignment.Center) { Text("CONNECT GMAIL", fontWeight=FontWeight.Black, color=Color.Black) }
                 } else {
                     OutlinedTextField(value = pickQuery, onValueChange = { pickQuery = it }, placeholder = { Text("Filter docs…", color=DraftLockColors.muted) }, modifier = Modifier.fillMaxWidth(), singleLine=true, shape=RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor=DraftLockColors.accent, unfocusedBorderColor=DraftLockColors.line, focusedContainerColor=Color(0xFF111114), unfocusedContainerColor=Color(0xFF111114), focusedTextColor=DraftLockColors.ink, unfocusedTextColor=DraftLockColors.ink))
                     if (vm.isSyncing) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth(), color=DraftLockColors.accent, trackColor=DraftLockColors.line)
