@@ -1025,7 +1025,7 @@ private fun DocsScreen(vm: DraftLockViewModel) {
                 }
             }
             if (vm.driveFiles.isEmpty() && vm.isGoogleConnected) item { Text("No Google Docs found — create one above.", color = DraftLockColors.muted, style = MaterialTheme.typography.bodySmall) }
-            if (vm.driveFiles.isEmpty() && !vm.isGoogleConnected) item { Button(onClick = { if(vm.isGoogleConfigured) vm.startGoogleAuth(context) else showClientDialog = true }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)) { Icon(painterResource(R.drawable.ic_google), null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Connect Gmail to see your Docs") } }
+            if (vm.driveFiles.isEmpty() && !vm.isGoogleConnected) item { Box(Modifier.fillMaxWidth().background(DraftLockColors.accent).clickable { if(vm.isGoogleConfigured) vm.startGoogleAuth(context) else showClientDialog = true }.padding(14.dp), contentAlignment = Alignment.Center) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_google), null, tint=Color.Black, modifier=Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("CONNECT GMAIL TO SEE DOCS", fontWeight=FontWeight.Black, color=Color.Black, letterSpacing=0.6.sp) } } }
             item { Text("Words: ${text.split(Regex("\\s+")).count { it.isNotBlank() }} • ${if (autoSave) "Auto-sync ON" else "Manual"} • Folder: ${folderId.ifBlank { "(root)" }}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted) }
         }
     }
@@ -1081,7 +1081,7 @@ private fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int
                     }
                     Text(vm.syncStatus, style = MaterialTheme.typography.bodySmall, color = DraftLockColors.muted)
                     if (!vm.isGoogleConnected) {
-                        Button(onClick = { vm.startGoogleAuth(context) }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)) { Icon(painterResource(R.drawable.ic_google), null, Modifier.size(16.dp)); Spacer(Modifier.width(8.dp)); Text("Sign in with Google — just like Gmail") }
+                        Box(Modifier.fillMaxWidth().background(DraftLockColors.accent).clickable { vm.startGoogleAuth(context) }.padding(14.dp), contentAlignment = Alignment.Center) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_google), null, tint=Color.Black, modifier=Modifier.size(16.dp)); Spacer(Modifier.width(8.dp)); Text("SIGN IN WITH GOOGLE", fontWeight=FontWeight.Black, color=Color.Black, letterSpacing=0.6.sp) } }
                         Text("One tap, pick your Google account, Allow. No paste needed if you build with GOOGLE_CLIENT_ID.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                     } else {
                         Button(onClick = { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() }, modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = DraftLockColors.panelElevated, contentColor = Color.White)) { Text("Unlink Gmail") }
