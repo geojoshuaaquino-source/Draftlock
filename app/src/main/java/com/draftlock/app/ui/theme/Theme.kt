@@ -87,16 +87,18 @@ fun DraftLockTheme(
     )
 }
 
-// Animation specs – instant, no stagger delay (fix lag report)
+// Motion — Stripe/Linear restraint: one hero, 40ms stagger, gentle settle
 object DraftLockMotion {
-    val SpringMedium = spring<Float>(dampingRatio = 0.9f, stiffness = 500f)
-    val SpringGentle = spring<Float>(dampingRatio = 0.9f, stiffness = 400f)
-    val SpringBouncy = spring<Float>(dampingRatio = 0.85f, stiffness = 600f)
-    val EaseOut = tween<Float>(140, easing = EaseOutCubic)
-    val EaseInOut = tween<Float>(160, easing = EaseInOutCubic)
-    val QuickSnap = tween<Float>(110, easing = LinearOutSlowInEasing)
-    const val StaggerMs = 0 // no delay – instant
-    const val HeroDuration = 180
+    val SpringMedium = spring<Float>(dampingRatio = 0.88f, stiffness = 520f)
+    val SpringGentle = spring<Float>(dampingRatio = 0.92f, stiffness = 380f)
+    val SpringBouncy = spring<Float>(dampingRatio = 0.82f, stiffness = 580f)
+    val EaseOut = tween<Float>(220, easing = EaseOutCubic) // hero 220 + fade 180
+    val EaseInOut = tween<Float>(260, easing = EaseInOutCubic)
+    val QuickSnap = tween<Float>(140, easing = LinearOutSlowInEasing)
+    val Micro = tween<Float>(160, easing = EaseOutCubic) // press/hover 120-200
+    const val StaggerMs = 42 // 40-90 per element
+    const val HeroDuration = 520
+    const val SectionDuration = 420
 }
 
 // Infinite pulse for cursor/active states

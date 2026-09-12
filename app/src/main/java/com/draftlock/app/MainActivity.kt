@@ -401,13 +401,13 @@ fun DraftLockApp(vm: DraftLockViewModel) {
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Linked aesthetic background assets — grid + vault glow (black theme, lime/violet complementary)
-            Box(Modifier.fillMaxSize()) {
-                Image(painterResource(R.drawable.bg_vault_grid_dark), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.18f)
-                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.06f)
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F).copy(alpha=0.85f), Color(0xFF12121A).copy(alpha=0.92f)))))
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x10D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(280f, 90f), radius = 900f)))
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x0A7C6CFF), Color.Transparent), center = androidx.compose.ui.geometry.Offset(120f, 700f), radius = 600f)))
+            // Aesthetic bg — black 0A0A0F + grid 0.12 + halftone 0.05 + lime 12% top sheen + violet 08 wash (complementary)
+            Box(Modifier.fillMaxSize().background(Color(0xFF08080C))) {
+                Image(painterResource(R.drawable.bg_vault_grid_dark), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.12f)
+                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.05f)
+                Box(Modifier.fillMaxWidth().height(1.dp).align(Alignment.TopCenter).background(Brush.horizontalGradient(listOf(Color.Transparent, Color(0x18D4FF32), Color.Transparent))))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x0FD4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(360f, 120f), radius = 1100f)))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x087C6CFF), Color.Transparent), center = androidx.compose.ui.geometry.Offset(180f, 820f), radius = 700f)))
             }
             Scaffold(
                 containerColor = Color.Transparent,
