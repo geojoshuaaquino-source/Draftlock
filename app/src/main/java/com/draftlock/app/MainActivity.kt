@@ -109,34 +109,52 @@ private enum class Screen(val label: String, val iconRes: Int) {
 class MainActivity : ComponentActivity() {
     private lateinit var oauthManager: GoogleOAuthManager
     private var draftLockVm: DraftLockViewModel? = null
+    private var pendingOAuthIntent: Intent? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Thread.setDefaultUncaughtExceptionHandler { _, e -> android.util.Log.e("DraftLock", "Uncaught", e) }
         try { WindowCompat.setDecorFitsSystemWindows(window, false) } catch (_: Exception) {}
         oauthManager = GoogleOAuthManager(this)
-        handleOAuthIntent(intent)
+        // stash intent if vm not ready yet; will be handled after composition
+        if (isOAuthIntent(intent)) pendingOAuthIntent = intent else handleOAuthIntent(intent)
         setContent {
             val vm: DraftLockViewModel = viewModel()
             draftLockVm = vm
+            // flush pending once vm is available
+            pendingOAuthIntent?.let { pi ->
+                pendingOAuthIntent = null
+                handleOAuthIntent(pi)
+            }
             DraftLockApp(vm)
         }
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleOAuthIntent(intent)
+        // if vm not yet bound, stash
+        if (draftLockVm == null) pendingOAuthIntent = intent else handleOAuthIntent(intent)
+    }
+    private fun isOAuthIntent(intent: Intent?): Boolean {
+        if (intent == null) return false
+        return intent.data?.toString()?.contains("/oauth2redirect") == true || intent.hasExtra("net.openid.appauth.AuthorizationResponse") || intent.hasExtra("net.openid.appauth.AuthorizationException")
     }
     private fun handleOAuthIntent(intent: Intent?) {
         if (intent == null) return
-        if (intent.data?.toString()?.contains("/oauth2redirect") == true || intent.hasExtra("net.openid.appauth.AuthorizationResponse")) {
-            oauthManager.handleResult(intent) { ok, msg ->
-                val vm = draftLockVm
-                if (ok) {
-                    vm?.checkGoogleConnection()
-                    vm?.saveGoogleStatus("Gmail linked ✓ Fetching chapters…")
-                    vm?.fetchDriveFiles()
-                } else {
-                    vm?.saveGoogleStatus(msg)
-                }
+        if (!isOAuthIntent(intent)) return
+        android.util.Log.i("DraftLock", "handleOAuthIntent data=${intent.data} hasResponse=${intent.hasExtra("net.openid.appauth.AuthorizationResponse")} hasError=${intent.hasExtra("net.openid.appauth.AuthorizationException")}")
+        oauthManager.handleResult(intent) { ok, msg ->
+            android.util.Log.i("DraftLock", "OAuth result ok=$ok msg=$msg")
+            val vm = draftLockVm
+            if (vm == null) {
+                // vm not ready, re-stash to retry after composition
+                pendingOAuthIntent = intent
+                return@handleResult
+            }
+            if (ok) {
+                vm.checkGoogleConnection()
+                vm.saveGoogleStatus("Gmail linked ✓ Fetching chapters…")
+                vm.fetchDriveFiles()
+            } else {
+                vm.saveGoogleStatus("Login failed: $msg — check SHA1 + Package com.draftlock.app + client type Android (not Web) in console.cloud.google.com → Credentials")
             }
         }
     }
@@ -383,10 +401,13 @@ fun DraftLockApp(vm: DraftLockViewModel) {
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Dark base + single vault glow (glass will provide depth, not busy pattern)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F), Color(0xFF12121A)))), contentAlignment = Alignment.Center) {
+            // Linked aesthetic background assets — grid + vault glow (black theme, lime/violet complementary)
+            Box(Modifier.fillMaxSize()) {
+                Image(painterResource(R.drawable.bg_vault_grid_dark), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.18f)
+                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.06f)
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0A0F).copy(alpha=0.85f), Color(0xFF12121A).copy(alpha=0.92f)))))
                 Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x10D4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(280f, 90f), radius = 900f)))
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x0A00CD3C), Color.Transparent), center = androidx.compose.ui.geometry.Offset(120f, 700f), radius = 600f)))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x0A7C6CFF), Color.Transparent), center = androidx.compose.ui.geometry.Offset(120f, 700f), radius = 600f)))
             }
             Scaffold(
                 containerColor = Color.Transparent,
