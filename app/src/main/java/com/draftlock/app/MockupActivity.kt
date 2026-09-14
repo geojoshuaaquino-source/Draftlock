@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.draftlock.app.ui.theme.DraftLockTheme
 
 private enum class MockScreen { HOME, WRITE, APPS, DOCS, SETTINGS }
 private val BgTop = Color(0xFF08162C)
