@@ -506,7 +506,7 @@ fun DraftLockApp(vm: DraftLockViewModel) {
 }
 
 @androidx.compose.runtime.Composable
-private fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: List<AppRequirement>, lockedApps: List<LockedApp>, logic: String, context: Context, onWrite: () -> Unit, onOverride: () -> Unit) {
+fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: List<AppRequirement>, lockedApps: List<LockedApp>, logic: String, context: Context, onWrite: () -> Unit, onOverride: () -> Unit) {
     val complete = vm.allConditionsComplete()
     val progress = (words.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
     val isUnlocked = words >= quota && (requirements.filter { it.enabled }.isEmpty() || logic == "OR" && requirements.filter { it.enabled }.any { (vm.usageMinutes[it.packageName] ?: 0) >= it.requiredMinutes } || logic == "AND" && requirements.filter { it.enabled }.all { (vm.usageMinutes[it.packageName] ?: 0) >= it.requiredMinutes })
@@ -727,7 +727,7 @@ private fun RequirementRow(name: String, current: Int, required: Int, complete: 
 
 
 @androidx.compose.runtime.Composable
-private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
+fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
     val ctx = LocalContext.current
     var draft by remember(text) { mutableStateOf(text) }
     var nameInput by remember(documentName) { mutableStateOf(documentName) }
@@ -817,7 +817,7 @@ private fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota:
 }
 
 @androidx.compose.runtime.Composable
-private fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
+fun UnifiedAppsScreen(vm: DraftLockViewModel, context: Context) {
     val requirements by vm.requirements.collectAsStateWithLifecycle()
     val lockedApps by vm.lockedApps.collectAsStateWithLifecycle()
     val logic by vm.logic.collectAsStateWithLifecycle()
@@ -993,7 +993,7 @@ private fun UnifiedAppRow(app: SimpleApp, req: AppRequirement?, locked: LockedAp
 private data class SimpleApp(val packageName: String, val label: String)
 
 @androidx.compose.runtime.Composable
-private fun DocsScreen(vm: DraftLockViewModel) {
+fun DocsScreen(vm: DraftLockViewModel) {
     val context = LocalContext.current
     val documentName by vm.documentName.collectAsStateWithLifecycle()
     val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
@@ -1145,7 +1145,7 @@ private fun DocsScreen(vm: DraftLockViewModel) {
 }
 
 @androidx.compose.runtime.Composable
-private fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int, logic: String, autoSave: Boolean, onOverride: () -> Unit) {
+fun SettingsScreen(vm: DraftLockViewModel, quota: Int, resetMinutes: Int, logic: String, autoSave: Boolean, onOverride: () -> Unit) {
     val context = LocalContext.current
     var quotaText by remember(quota) { mutableStateOf(quota.toString()) }
     var resetText by remember(resetMinutes) { mutableStateOf(resetMinutes.toString()) }
