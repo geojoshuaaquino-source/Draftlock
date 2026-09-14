@@ -292,7 +292,7 @@ private fun FocusMock(onStatus: (String) -> Unit) {
             Spacer(Modifier.height(9.dp))
             Selector("25:00")
             Spacer(Modifier.height(9.dp))
-            PillButton("Start Focus", Blue, Color.White, R.drawable.ic_write) { onStatus("Focus started") }
+            PillButton("Start Focus", Blue, Color.White, R.drawable.ic_write, onClick = { onStatus("Focus started") })
         }
         Spacer(Modifier.height(11.dp))
         GlassCard {
@@ -335,7 +335,7 @@ private fun SettingsMock(vm: DraftLockViewModel, status: String, onGoogle: () ->
             Text(status.ifBlank { if (vm.isGoogleConnected) "Connected" else "Not connected" }, color = Muted, fontSize = 10.sp)
             Spacer(Modifier.height(9.dp))
             if (vm.isGoogleConnected) {
-                PillButton("Google connected", Blue, Color.White, R.drawable.ic_google) { onStatus("Already connected") }
+                PillButton("Google connected", Blue, Color.White, R.drawable.ic_google, onClick = { onStatus("Already connected") })
             } else {
                 PillButton("Connect Google", Blue, Color.White, R.drawable.ic_google, onGoogle)
             }
