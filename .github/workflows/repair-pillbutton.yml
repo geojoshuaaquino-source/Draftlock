@@ -1,0 +1,46 @@
+name: Repair DraftLock compile error
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch trailing-lambda PillButton calls
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/draftlock/app/MockupActivity.kt')
+          s = p.read_text()
+          replacements = {
+              'PillButton("Start Focus", Blue, Color.White, R.drawable.ic_write) { onStatus("Focus started") }':
+              'PillButton("Start Focus", Blue, Color.White, R.drawable.ic_write, onClick = { onStatus("Focus started") })',
+              'PillButton("Google connected", Blue, Color.White, R.drawable.ic_google) { onStatus("Already connected") }':
+              'PillButton("Google connected", Blue, Color.White, R.drawable.ic_google, onClick = { onStatus("Already connected") })',
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'Missing expected source text: {old}')
+              s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/com/draftlock/app/MockupActivity.kt
+          git commit -m 'Fix trailing lambda arguments in PillButton calls'
+          git push
+      - name: Remove repair workflow
+        if: success()
+        run: |
+          git rm .github/workflows/repair-pillbutton.yml
+          git commit -m 'Remove temporary compile repair workflow'
+          git push
