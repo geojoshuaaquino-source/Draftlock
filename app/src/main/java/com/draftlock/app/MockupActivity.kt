@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -33,11 +33,11 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +49,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -84,8 +86,7 @@ class MockupActivity : ComponentActivity() {
 @Composable
 private fun DraftLockMockup() {
     val vm: DraftLockViewModel = viewModel()
-    val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = LocalContext.current as? Activity
     var onboarding by remember { mutableStateOf(true) }
     var screen by remember { mutableStateOf(AppScreen.HOME) }
     var editor by remember { mutableStateOf(false) }
@@ -108,7 +109,10 @@ private fun DraftLockMockup() {
                     },
                     onGithub = { onboarding = false }
                 )
-                editor -> EditorMock(onBack = { editor = false }, onSaved = { status = "Saved" })
+                editor -> EditorMock(
+                    onBack = { editor = false },
+                    onSaved = { status = "Saved" }
+                )
                 else -> AppShell(
                     vm = vm,
                     screen = screen,
@@ -130,7 +134,7 @@ private fun DraftLockMockup() {
 private fun MockBackground(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(BgTop, Bg, BgBottom)))) {
         Box(
-            Modifier.size(560.dp).padding(0.dp).background(
+            Modifier.size(560.dp).background(
                 Brush.radialGradient(listOf(Blue.copy(alpha = .25f), Color.Transparent)), CircleShape
             ).align(Alignment.TopStart)
         )
@@ -139,10 +143,6 @@ private fun MockBackground(content: @Composable () -> Unit) {
                 Brush.radialGradient(listOf(Purple.copy(alpha = .20f), Color.Transparent)), CircleShape
             ).align(Alignment.TopEnd)
         )
-        Box(
-            Modifier.fillMaxWidth().height(300.dp).align(Alignment.BottomCenter)
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Blue.copy(alpha = .10f))))
-        )
         content()
     }
 }
@@ -150,24 +150,17 @@ private fun MockBackground(content: @Composable () -> Unit) {
 @Composable
 private fun Onboarding(onEmail: () -> Unit, onGoogle: () -> Unit, onGithub: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
-            .padding(horizontal = 28.dp, vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Spacer(Modifier.weight(1f))
         Logo(82.dp)
         Spacer(Modifier.height(18.dp))
         Brand(34.sp)
         Spacer(Modifier.height(18.dp))
         Text("Write freely.", color = Muted, fontSize = 18.sp)
         Text("Keep it yours.", color = Muted, fontSize = 18.sp)
-        Spacer(Modifier.height(42.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(Cyan))
-            Box(Modifier.size(7.dp).clip(CircleShape).background(GlassLine))
-            Box(Modifier.size(7.dp).clip(CircleShape).background(GlassLine))
-        }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(38.dp))
         PillButton("Continue with Email", Blue, Color.White, R.drawable.ic_write, onEmail)
         Spacer(Modifier.height(10.dp))
         PillButton("Continue with Google", GlassSoft, Ink, R.drawable.ic_google, onGoogle, true)
@@ -175,7 +168,6 @@ private fun Onboarding(onEmail: () -> Unit, onGoogle: () -> Unit, onGithub: () -
         PillButton("Continue with GitHub", GlassSoft, Ink, R.drawable.ic_key, onGithub, true)
         Spacer(Modifier.height(14.dp))
         Text("Already have an account?  Log in", color = Muted, fontSize = 11.sp)
-        Spacer(Modifier.weight(.9f))
     }
 }
 
@@ -190,7 +182,7 @@ private fun AppShell(
     onStatus: (String) -> Unit
 ) {
     Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().weightless()) {
             when (screen) {
                 AppScreen.HOME -> HomeMock(vm, onOpenEditor)
                 AppScreen.LIBRARY -> LibraryMock(onOpenEditor)
@@ -202,48 +194,50 @@ private fun AppShell(
     }
 }
 
+private fun Modifier.weightless(): Modifier = this
+
 @Composable
 private fun HomeMock(vm: DraftLockViewModel, onOpenEditor: () -> Unit) {
     val words by vm.todayWords.collectAsState(initial = 0)
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Logo(34.dp)
-                Spacer(Modifier.width(9.dp))
-                Brand(20.sp)
-            }
+            Logo(34.dp)
+            Spacer(Modifier.width(9.dp))
+            Brand(20.sp)
+            Spacer(Modifier.width(12.dp))
             GlassIcon("•")
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(18.dp))
         Text("Good evening,", color = Ink, fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Text("Your drafts are safe. Keep going.", color = Muted, fontSize = 12.sp)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
         GlassCard {
-            Row(Modifier.fillMaxWidth()) {
-                Stat("12", "Total Drafts", Modifier.weight(1f), Cyan)
-                Stat("4", "Locked", Modifier.weight(1f), Purple)
-                Stat("8", "Unlocked", Modifier.weight(1f), Green)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Stat("12", "Total Drafts", Cyan)
+                Stat("4", "Locked", Purple)
+                Stat("8", "Unlocked", Green)
             }
         }
-        Spacer(Modifier.height(12.dp))
-        SearchBar("Search your drafts…")
         Spacer(Modifier.height(10.dp))
+        SearchBar("Search your drafts…")
+        Spacer(Modifier.height(9.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             FilterChip("All", true)
             FilterChip("Locked", false)
             FilterChip("Unlocked", false)
         }
-        Spacer(Modifier.height(11.dp))
+        Spacer(Modifier.height(10.dp))
         LazyColumn(
-            Modifier.weight(1f),
+            Modifier.fillMaxWidth().height(310.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp),
-            contentPadding = PaddingValues(bottom = 10.dp)
+            contentPadding = PaddingValues(bottom = 8.dp)
         ) {
             item { DraftRow("The Next Chapter", "The city was quieter than usual…", "Updated 2h ago • 1,428 words", true, onOpenEditor) }
             item { DraftRow("Project Aurora", "It started with a single message…", "Updated 5h ago • 892 words", false, onOpenEditor) }
             item { DraftRow("Untitled Draft", "Ideas… maybe something here…", "Updated 1d ago • $words words", false, onOpenEditor) }
             item { DraftRow("The Last Light", "Some doors are not meant to be…", "Updated 2d ago • 1,203 words", true, onOpenEditor) }
         }
+        Spacer(Modifier.height(8.dp))
         Box(
             Modifier.size(54.dp).align(Alignment.End).shadow(14.dp, CircleShape)
                 .clip(CircleShape).background(Brush.linearGradient(listOf(Cyan, Purple))),
@@ -254,12 +248,12 @@ private fun HomeMock(vm: DraftLockViewModel, onOpenEditor: () -> Unit) {
 
 @Composable
 private fun LibraryMock(onOpenEditor: () -> Unit) {
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         TopTitle("Library")
         Spacer(Modifier.height(14.dp))
         SearchBar("Search drafts…")
         Spacer(Modifier.height(12.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             item { DraftRow("The Next Chapter", "The city was quieter than usual…", "1,428 words", true, onOpenEditor) }
             item { DraftRow("Project Aurora", "It started with a single message…", "892 words", false, onOpenEditor) }
             item { DraftRow("Untitled Draft", "Ideas… maybe something here…", "204 words", false, onOpenEditor) }
@@ -275,20 +269,21 @@ private fun FocusMock(onStatus: (String) -> Unit) {
     var instagram by remember { mutableStateOf(true) }
     var tiktok by remember { mutableStateOf(true) }
     var discord by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         TopTitle("Focus & Locked Apps")
         Spacer(Modifier.height(14.dp))
         GlassCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.ic_usage), null, tint = Cyan, modifier = Modifier.size(29.dp))
                 Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.fillMaxWidth()) {
                     Text("Focus Mode", color = Ink, fontWeight = FontWeight.Bold)
                     Text("Block distractions. Stay in the zone.", color = Muted, fontSize = 10.sp)
                 }
-                BlueSwitch(focus) { focus = it }
             }
-            Spacer(Modifier.height(11.dp))
+            Spacer(Modifier.height(10.dp))
+            BlueSwitch(focus) { focus = it }
+            Spacer(Modifier.height(9.dp))
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x451B4E80)).padding(4.dp)) {
                 Segment("Pomodoro", true)
                 Segment("Custom", false)
@@ -304,10 +299,7 @@ private fun FocusMock(onStatus: (String) -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.ic_lock_closed), null, tint = Cyan, modifier = Modifier.size(27.dp))
                 Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Locked Apps", color = Ink, fontWeight = FontWeight.Bold)
-                    Text("These apps will be locked while Focus is active.", color = Muted, fontSize = 9.sp)
-                }
+                Text("Locked Apps", color = Ink, fontWeight = FontWeight.Bold)
             }
             AppToggle("YouTube", youtube) { youtube = it }
             AppToggle("Instagram", instagram) { instagram = it }
@@ -323,18 +315,17 @@ private fun FocusMock(onStatus: (String) -> Unit) {
 
 @Composable
 private fun SettingsMock(vm: DraftLockViewModel, status: String, onGoogle: () -> Unit, onStatus: (String) -> Unit) {
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         TopTitle("Settings")
         Spacer(Modifier.height(14.dp))
         GlassCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Logo(40.dp)
                 Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
+                Column {
                     Text("DraftLock", color = Ink, fontWeight = FontWeight.Bold)
                     Text("Write freely. Keep it yours.", color = Muted, fontSize = 10.sp)
                 }
-                Text("v1.0", color = Muted, fontSize = 9.sp)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -343,11 +334,11 @@ private fun SettingsMock(vm: DraftLockViewModel, status: String, onGoogle: () ->
             Spacer(Modifier.height(3.dp))
             Text(status.ifBlank { if (vm.isGoogleConnected) "Connected" else "Not connected" }, color = Muted, fontSize = 10.sp)
             Spacer(Modifier.height(9.dp))
-            PillButton(
-                if (vm.isGoogleConnected) "Google connected" else "Connect Google",
-                Blue, Color.White, R.drawable.ic_google,
-                if (vm.isGoogleConnected) ({ onStatus("Already connected") }) else onGoogle
-            )
+            if (vm.isGoogleConnected) {
+                PillButton("Google connected", Blue, Color.White, R.drawable.ic_google) { onStatus("Already connected") }
+            } else {
+                PillButton("Connect Google", Blue, Color.White, R.drawable.ic_google, onGoogle)
+            }
         }
         Spacer(Modifier.height(10.dp))
         ActionRow("Daily goal", "${vm.todayWords.value} words written today", R.drawable.ic_write)
@@ -360,12 +351,12 @@ private fun SettingsMock(vm: DraftLockViewModel, status: String, onGoogle: () ->
 private fun EditorMock(onBack: () -> Unit, onSaved: () -> Unit) {
     var title by remember { mutableStateOf(TextFieldValue("The Next Chapter")) }
     var body by remember { mutableStateOf(TextFieldValue("The city was quieter than usual, the kind of silence that felt deliberate rather than peaceful.\n\nHe stood at the edge of the rooftop, watching the lights flicker on one by one.\n\nEvery window was a story. Every shadow felt like a warning.")) }
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("‹", color = Ink, fontSize = 34.sp, modifier = Modifier.clickable { onBack() })
             Spacer(Modifier.width(8.dp))
             Text("Editor", color = Muted, fontSize = 12.sp)
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
             Text("Saved", color = Green, fontSize = 11.sp, modifier = Modifier.clickable { onSaved() })
         }
         Spacer(Modifier.height(14.dp))
@@ -382,7 +373,7 @@ private fun EditorMock(onBack: () -> Unit, onSaved: () -> Unit) {
                 value = body,
                 onValueChange = { body = it },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink, lineHeight = 24.sp),
-                modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                modifier = Modifier.fillMaxWidth().height(330.dp),
                 cursorBrush = SolidColor(Cyan)
             )
         }
@@ -390,8 +381,6 @@ private fun EditorMock(onBack: () -> Unit, onSaved: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Tag("1,428 words")
             Tag("Unlocked")
-            Spacer(Modifier.weight(1f))
-            Text("•••", color = Muted, fontSize = 18.sp)
         }
     }
 }
@@ -399,7 +388,7 @@ private fun EditorMock(onBack: () -> Unit, onSaved: () -> Unit) {
 @Composable
 private fun BottomNav(selected: AppScreen, onSelect: (AppScreen) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp)
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(10.dp)
             .clip(RoundedCornerShape(24.dp)).background(Color(0x9A0B1B31))
             .border(1.dp, GlassLine, RoundedCornerShape(24.dp)).padding(6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
@@ -407,7 +396,7 @@ private fun BottomNav(selected: AppScreen, onSelect: (AppScreen) -> Unit) {
         AppScreen.entries.forEach { item ->
             val active = item == selected
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(17.dp))
+                Modifier.width(76.dp).clip(RoundedCornerShape(17.dp))
                     .background(if (active) Color(0x4D2474BC) else Color.Transparent)
                     .clickable { onSelect(item) }.padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -420,16 +409,15 @@ private fun BottomNav(selected: AppScreen, onSelect: (AppScreen) -> Unit) {
 }
 
 @Composable
-private fun GlassCard(content: @Composable Column.() -> Unit) {
+private fun GlassCard(content: @Composable () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Glass)
-            .border(1.dp, GlassLine, RoundedCornerShape(22.dp)).padding(14.dp),
-        content = content
-    )
+            .border(1.dp, GlassLine, RoundedCornerShape(22.dp)).padding(14.dp)
+    ) { content() }
 }
 
 @Composable
-private fun Logo(size: androidx.compose.ui.unit.Dp) {
+private fun Logo(size: Dp) {
     Box(
         Modifier.size(size).clip(RoundedCornerShape(size * .28f))
             .background(Brush.linearGradient(listOf(Cyan, Blue, Purple)))
@@ -441,7 +429,7 @@ private fun Logo(size: androidx.compose.ui.unit.Dp) {
 }
 
 @Composable
-private fun Brand(size: androidx.compose.ui.unit.TextUnit) {
+private fun Brand(size: TextUnit) {
     Text("draftlock", color = Ink, fontSize = size, fontWeight = FontWeight.Bold, letterSpacing = (-.7).sp)
 }
 
@@ -462,8 +450,8 @@ private fun GlassIcon(text: String) {
 }
 
 @Composable
-private fun Stat(value: String, label: String, modifier: Modifier, tint: Color) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+private fun Stat(value: String, label: String, tint: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, color = tint, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(label, color = Muted, fontSize = 9.sp)
     }
@@ -471,7 +459,7 @@ private fun Stat(value: String, label: String, modifier: Modifier, tint: Color) 
 
 @Composable
 private fun SearchBar(placeholder: String) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(GlassSoft).border(1.dp, GlassLine, RoundedCornerShape(17.dp)).padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(GlassSoft).border(1.dp, GlassLine, RoundedCornerShape(17.dp)).padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("⌕", color = Cyan, fontSize = 19.sp)
         Spacer(Modifier.width(8.dp))
         Text(placeholder, color = Muted, fontSize = 11.sp)
@@ -481,7 +469,7 @@ private fun SearchBar(placeholder: String) {
 @Composable
 private fun FilterChip(text: String, selected: Boolean) {
     Box(Modifier.clip(RoundedCornerShape(14.dp)).background(if (selected) Color(0x552A7BC8) else GlassSoft).border(1.dp, if (selected) Cyan.copy(alpha = .45f) else GlassLine, RoundedCornerShape(14.dp)).padding(horizontal = 13.dp, vertical = 7.dp)) {
-        Text(text, color = if (selected) Ink else Muted, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+        Text(text, color = if (selected) Ink else Muted, fontSize = 10.sp)
     }
 }
 
@@ -492,12 +480,11 @@ private fun DraftRow(title: String, preview: String, meta: String, locked: Boole
             Icon(painterResource(if (locked) R.drawable.ic_lock_closed else R.drawable.ic_docs), null, tint = if (locked) Purple else Cyan, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.fillMaxWidth()) {
             Text(title, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(preview, color = Muted, fontSize = 10.sp, maxLines = 1)
             Text(meta, color = Muted.copy(alpha = .72f), fontSize = 8.sp)
         }
-        Text(if (locked) "▣" else "›", color = if (locked) Purple else Muted, fontSize = 15.sp)
     }
 }
 
@@ -523,16 +510,16 @@ private fun BlueSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
 
 @Composable
 private fun Segment(text: String, selected: Boolean) {
-    Box(Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(if (selected) Color(0x663B91E8) else Color.Transparent).padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.width(90.dp).clip(RoundedCornerShape(13.dp)).background(if (selected) Color(0x663B91E8) else Color.Transparent).padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
         Text(text, color = if (selected) Ink else Muted, fontSize = 9.sp)
     }
 }
 
 @Composable
 private fun Selector(text: String) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0x3A0E2948)).border(1.dp, GlassLine, RoundedCornerShape(15.dp)).padding(horizontal = 13.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0x3A0E2948)).border(1.dp, GlassLine, RoundedCornerShape(15.dp)).padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Duration", color = Muted, fontSize = 10.sp)
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
         Text(text, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -540,9 +527,12 @@ private fun Selector(text: String) {
 @Composable
 private fun AppToggle(name: String, enabled: Boolean, onChanged: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(Color(0x303A91D5)), contentAlignment = Alignment.Center) { Text(name.take(1), color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(Color(0x303A91D5)), contentAlignment = Alignment.Center) {
+            Text(name.take(1), color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
         Spacer(Modifier.width(9.dp))
-        Text(name, color = Ink, fontSize = 11.sp, modifier = Modifier.weight(1f))
+        Text(name, color = Ink, fontSize = 11.sp)
+        Spacer(Modifier.width(8.dp))
         BlueSwitch(enabled, onChanged)
     }
 }
@@ -552,17 +542,16 @@ private fun ActionRow(title: String, subtitle: String, icon: Int) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(GlassSoft).border(1.dp, GlassLine, RoundedCornerShape(18.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, tint = Cyan, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
+        Column {
             Text(title, color = Ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = Muted, fontSize = 9.sp)
         }
-        Text("›", color = Muted, fontSize = 18.sp)
     }
 }
 
 @Composable
 private fun Tag(text: String) {
-    Box(Modifier.clip(RoundedCornerShape(11.dp)).background(GlassSoft).padding(horizontal = 9.dp, vertical = 6.dp)) {
+    Box(Modifier.clip(RoundedCornerShape(12.dp)).background(GlassSoft).border(1.dp, GlassLine, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp)) {
         Text(text, color = Muted, fontSize = 9.sp)
     }
 }
