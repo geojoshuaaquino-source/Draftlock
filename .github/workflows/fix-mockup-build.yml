@@ -15,17 +15,17 @@ jobs:
           from pathlib import Path
           p = Path('app/src/main/java/com/draftlock/app/MockupActivity.kt')
           s = p.read_text()
-          if 'import androidx.compose.ui.platform.LocalContext' not in s:
-              s = s.replace('import androidx.compose.ui.res.painterResource\n', 'import androidx.compose.ui.res.painterResource\nimport androidx.compose.ui.platform.LocalContext\n')
-          if 'private fun MockLibrary' in s and 'val context = LocalContext.current' not in s[s.index('private fun MockLibrary'):s.index('private fun MockLibrary')+250]:
-              s = s.replace('private fun MockLibrary(vm: DraftLockViewModel, localDocs: List<com.draftlock.app.data.LocalDocument>, onEdit: () -> Unit) {\n', 'private fun MockLibrary(vm: DraftLockViewModel, localDocs: List<com.draftlock.app.data.LocalDocument>, onEdit: () -> Unit) {\n    val context = LocalContext.current\n')
-          if 'private fun MockSettings' in s and 'val context = LocalContext.current' not in s[s.index('private fun MockSettings'):s.index('private fun MockSettings')+220]:
-              s = s.replace('private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {\n', 'private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {\n    val context = LocalContext.current\n')
-          s = s.replace('androidx.compose.ui.platform.LocalContext.current', 'context')
+          s = s.replace('R.drawable.ic_search', 'R.drawable.ic_docs')
+          s = s.replace('R.drawable.ic_github', 'R.drawable.ic_lock_closed')
+          old = '''        if (req != null) Slider(value = minutes, onValueChange = { minutes = it }, valueRange = 5f..480f, steps = 94, onValueChangeFinished = { vm.updateRequirementMinutes(req.id, minutes.toInt()) })'''
+          new = '''        vm.isRequirement(app.packageName)?.let { currentReq ->
+            Slider(value = minutes, onValueChange = { minutes = it }, valueRange = 5f..480f, steps = 94, onValueChangeFinished = { vm.updateRequirementMinutes(currentReq.id, minutes.toInt()) })
+        }'''
+          s = s.replace(old, new)
           p.write_text(s)
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add app/src/main/java/com/draftlock/app/MockupActivity.kt
-          git diff --cached --quiet || git commit -m "Fix mockup UI build errors"
+          git diff --cached --quiet || git commit -m "Fix mockup UI compile blockers"
           git push || true
