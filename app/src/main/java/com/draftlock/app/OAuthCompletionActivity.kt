@@ -6,9 +6,8 @@ import android.os.Bundle
 import android.util.Log
 
 /**
- * Receives AppAuth's completion PendingIntent outside of Compose/MainActivity.
- * The OAuth state is persisted before the app is recreated, so the normal
- * startup path can deterministically render the connected state.
+ * Completes the AppAuth flow after Google redirects back through the
+ * configured custom scheme, then returns to the mockup UI.
  */
 class OAuthCompletionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,12 +17,12 @@ class OAuthCompletionActivity : Activity() {
         oauthManager.handleResult(intent) { ok, message ->
             Log.i("DraftLock", "OAuth completion ok=$ok message=$message")
 
-            val mainIntent = Intent(this, MainActivity::class.java).apply {
+            val appIntent = Intent(this, MockupActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                putExtra("oauth_result_ok", ok)
+                putExtra("oauth_result_message", message)
             }
-            mainIntent.putExtra("oauth_result_ok", ok)
-            mainIntent.putExtra("oauth_result_message", message)
-            startActivity(mainIntent)
+            startActivity(appIntent)
             finish()
         }
     }
