@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -241,6 +242,7 @@ private fun MetricCard(title: String, value: String, modifier: Modifier) {
 
 @Composable
 private fun MockLibrary(vm: DraftLockViewModel, localDocs: List<com.draftlock.app.data.LocalDocument>, onEdit: () -> Unit) {
+    val context = LocalContext.current
     var tab by remember { mutableStateOf(0) }
     var newTitle by remember { mutableStateOf("") }
     var showCreate by remember { mutableStateOf(false) }
@@ -256,7 +258,7 @@ private fun MockLibrary(vm: DraftLockViewModel, localDocs: List<com.draftlock.ap
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color(0xFF6EDCFF) else Color.White, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(if (vm.isGoogleConnected) "Google connected" else "Google Docs", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.syncStatus, color = Color(0xFF7E90B0), fontSize = 10.sp) }
-                    if (!vm.isGoogleConnected) GradientButton("Connect", Modifier.width(92.dp)) { vm.startGoogleAuth(androidx.compose.ui.platform.LocalContext.current) } else SmallGlassButton("Refresh") { vm.fetchDriveFiles() }
+                    if (!vm.isGoogleConnected) GradientButton("Connect", Modifier.width(92.dp)) { vm.startGoogleAuth(context) } else SmallGlassButton("Refresh") { vm.fetchDriveFiles() }
                 }
             }
         }
@@ -322,13 +324,14 @@ private fun editorFieldColors() = OutlinedTextFieldDefaults.colors(focusedBorder
 
 @Composable
 private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {
+    val context = LocalContext.current
     val quota by vm.quota.collectAsStateWithLifecycle(); val reset by vm.resetMinutes.collectAsStateWithLifecycle(); val logic by vm.logic.collectAsStateWithLifecycle(); val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp, 20.dp, 18.dp, 30.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
         item { Text("Settings", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold); Text("Tune your writing lock without changing how it works.", color = Color(0xFF7E90B0), fontSize = 12.sp) }
         item { GlassSurface { SettingRow("Daily word quota", "$quota words") { Slider(value = quota.toFloat(), onValueChange = { vm.setQuota(it.toInt()) }, valueRange = 100f..10000f) } } }
         item { GlassSurface { SettingRow("Unlock logic", logic) { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("AND", "OR").forEach { value -> FilterChip(selected = logic == value, onClick = { vm.setLogic(value) }, label = { Text(value) }) } } } } }
         item { GlassSurface { SettingRow("Google auto-save", if (autoSave) "Enabled" else "Disabled") { Switch(checked = autoSave, onCheckedChange = vm::setGoogleAutoSave) } } }
-        item { GlassSurface { Text("Google Drive", color = Color.White, fontWeight = FontWeight.Bold); Spacer(Modifier.height(6.dp)); Text(vm.syncStatus, color = Color(0xFF7E90B0), fontSize = 11.sp); Spacer(Modifier.height(10.dp)); if (vm.isGoogleConnected) SmallGlassButton("Disconnect") { GoogleOAuthManager(androidx.compose.ui.platform.LocalContext.current).disconnect(); vm.checkGoogleConnection() } else GradientButton("Connect Google", Modifier.fillMaxWidth()) { vm.startGoogleAuth(androidx.compose.ui.platform.LocalContext.current) } } }
+        item { GlassSurface { Text("Google Drive", color = Color.White, fontWeight = FontWeight.Bold); Spacer(Modifier.height(6.dp)); Text(vm.syncStatus, color = Color(0xFF7E90B0), fontSize = 11.sp); Spacer(Modifier.height(10.dp)); if (vm.isGoogleConnected) SmallGlassButton("Disconnect") { GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() } else GradientButton("Connect Google", Modifier.fillMaxWidth()) { vm.startGoogleAuth(context) } } }
         item { GradientButton("Manage locked apps", Modifier.fillMaxWidth(), onApps) }
         item { Text("Reset period: ${if (reset == 0) "Daily" else "$reset minutes"}", color = Color(0xFF6F819F), fontSize = 10.sp) }
     }
