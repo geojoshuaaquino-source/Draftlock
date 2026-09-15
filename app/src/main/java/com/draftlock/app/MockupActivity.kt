@@ -240,7 +240,7 @@ private fun MockLibrary(vm: DraftLockViewModel, localDocs: List<LocalDocument>, 
 }
 
 @Composable
-private fun SearchField(value: String, onChange: (String) -> Unit) { OutlinedTextField(value, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search drafts…", color = Color(0xFF647A9D)) }, leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, tint = Color(0xFF739BFF)) }, colors = editorFieldColors(), shape = RoundedCornerShape(15.dp)) }
+private fun SearchField(value: String, onChange: (String) -> Unit) { OutlinedTextField(value, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search drafts…", color = Color(0xFF647A9D)) }, leadingIcon = { Icon(painterResource(R.drawable.ic_docs), null, tint = Color(0xFF739BFF)) }, colors = editorFieldColors(), shape = RoundedCornerShape(15.dp)) }
 
 @Composable
 private fun RowScope.Seg(text: String, selected: Boolean, onClick: () -> Unit) { Box(Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFF443DD0) else Color.Transparent).clickable { onClick() }.padding(horizontal = 22.dp, vertical = 9.dp), contentAlignment = Alignment.Center) { Text(text, color = if (selected) Color.White else Color(0xFF7186A8), fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
@@ -274,7 +274,9 @@ private fun FocusAppRow(vm: DraftLockViewModel, app: LockedApp, req: AppRequirem
 
 @Composable
 private fun ManageAppRow(vm: DraftLockViewModel, app: InstalledApp) {
-    var minutes by remember(app.packageName) { mutableStateOf((vm.isRequirement(app.packageName)?.requiredMinutes ?: 30).toFloat()) }
+    val req = vm.isRequirement(app.packageName)
+    val locked = vm.isLocked(app.packageName)
+    var minutes by remember(app.packageName) { mutableStateOf((req?.requiredMinutes ?: 30).toFloat()) }
     GlassSurface {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (app.icon != null) Image(app.icon!!.asImageBitmap(), app.label, Modifier.size(38.dp).clip(RoundedCornerShape(10.dp))) else Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x1C396BFF)), contentAlignment = Alignment.Center) { Text(app.label.take(1), color = Color(0xFF7CA5FF), fontWeight = FontWeight.Bold) }
@@ -350,7 +352,7 @@ private fun MockOnboarding(onDone: () -> Unit) {
             Box(Modifier.size(86.dp).clip(RoundedCornerShape(27.dp)).background(Brush.linearGradient(listOf(Color(0xFF4D8DFF), Color(0xFF633BFF)))), contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_logo_draftlock), null, tint = Color.White, modifier = Modifier.size(54.dp)) }
             Spacer(Modifier.height(20.dp)); Row { Text("draft", color = Color(0xFFEAF3FF), fontSize = 31.sp, fontWeight = FontWeight.Medium); Text("lock", color = Color(0xFF7562FF), fontSize = 31.sp, fontWeight = FontWeight.Medium) }
             Spacer(Modifier.height(6.dp)); Text("Write freely.\nKeep it yours.", color = Color(0xFF9AB8FF), fontSize = 16.sp, lineHeight = 22.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Spacer(Modifier.height(35.dp)); GradientButton("Continue with Email", Modifier.fillMaxWidth(), onDone); Spacer(Modifier.height(10.dp)); SecondaryAuthButton("Continue with Google", R.drawable.ic_google) { onDone() }; Spacer(Modifier.height(10.dp)); Text("or", color = Color(0xFF6E82A5), fontSize = 10.sp); Spacer(Modifier.height(10.dp)); SecondaryAuthButton("Continue with GitHub", R.drawable.ic_github) { onDone() }; Spacer(Modifier.height(18.dp)); Text("Already have an account?  Log in", color = Color(0xFF7189B2), fontSize = 10.sp)
+            Spacer(Modifier.height(35.dp)); GradientButton("Continue with Email", Modifier.fillMaxWidth(), onDone); Spacer(Modifier.height(10.dp)); SecondaryAuthButton("Continue with Google", R.drawable.ic_google) { onDone() }; Spacer(Modifier.height(18.dp)); Text("Already have an account?  Log in", color = Color(0xFF7189B2), fontSize = 10.sp)
         }
     }
 }
