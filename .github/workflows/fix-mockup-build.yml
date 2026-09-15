@@ -16,16 +16,22 @@ jobs:
           p = Path('app/src/main/java/com/draftlock/app/MockupActivity.kt')
           s = p.read_text()
           s = s.replace('R.drawable.ic_search', 'R.drawable.ic_docs')
-          s = s.replace('R.drawable.ic_github', 'R.drawable.ic_lock_closed')
-          old = '''        if (req != null) Slider(value = minutes, onValueChange = { minutes = it }, valueRange = 5f..480f, steps = 94, onValueChangeFinished = { vm.updateRequirementMinutes(req.id, minutes.toInt()) })'''
-          new = '''        vm.isRequirement(app.packageName)?.let { currentReq ->
-            Slider(value = minutes, onValueChange = { minutes = it }, valueRange = 5f..480f, steps = 94, onValueChangeFinished = { vm.updateRequirementMinutes(currentReq.id, minutes.toInt()) })
-        }'''
+          s = s.replace('Spacer(Modifier.height(10.dp)); Text("or", color = Color(0xFF6E82A5), fontSize = 10.sp); Spacer(Modifier.height(10.dp)); SecondaryAuthButton("Continue with GitHub", R.drawable.ic_github) { onDone() }; Spacer(Modifier.height(18.dp)); Text("Already have an account?  Log in", color = Color(0xFF7189B2), fontSize = 10.sp)', 'Spacer(Modifier.height(18.dp)); Text("Already have an account?  Log in", color = Color(0xFF7189B2), fontSize = 10.sp)')
+          old = '''private fun ManageAppRow(vm: DraftLockViewModel, app: InstalledApp) {
+              var minutes by remember(app.packageName) { mutableStateOf((vm.isRequirement(app.packageName)?.requiredMinutes ?: 30).toFloat()) }
+              GlassSurface {'''
+          new = '''private fun ManageAppRow(vm: DraftLockViewModel, app: InstalledApp) {
+              val req = vm.isRequirement(app.packageName)
+              val locked = vm.isLocked(app.packageName)
+              var minutes by remember(app.packageName) { mutableStateOf((req?.requiredMinutes ?: 30).toFloat()) }
+              GlassSurface {'''
           s = s.replace(old, new)
+          s = s.replace('''            val req = vm.isRequirement(app.packageName); val locked = vm.isLocked(app.packageName)
+            if (req == null)''', '''            if (req == null)''')
           p.write_text(s)
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add app/src/main/java/com/draftlock/app/MockupActivity.kt
-          git diff --cached --quiet || git commit -m "Fix mockup UI compile blockers"
+          git diff --cached --quiet || git commit -m "Fix remaining mockup compile errors"
           git push || true
