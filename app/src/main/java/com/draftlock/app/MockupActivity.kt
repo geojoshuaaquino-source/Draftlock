@@ -283,7 +283,6 @@ private fun ManageAppRow(vm: DraftLockViewModel, app: InstalledApp) {
             Spacer(Modifier.width(9.dp)); Column(Modifier.weight(1f)) { Text(app.label, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(app.packageName, color = Color(0xFF61789B), fontSize = 8.sp, maxLines = 1) }
         }
         Spacer(Modifier.height(7.dp)); Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            val req = vm.isRequirement(app.packageName); val locked = vm.isLocked(app.packageName)
             if (req == null) SmallGlassButton("Require") { vm.addRequirement(AppRequirement(packageName = app.packageName, displayName = app.label, requiredMinutes = minutes.toInt().coerceIn(5,480))) } else { SmallGlassButton("${req.requiredMinutes}m") { vm.updateRequirementMinutes(req.id, (req.requiredMinutes + 5).coerceAtMost(480)) }; SmallGlassButton("Remove") { vm.deleteRequirement(req.id) } }
             if (locked == null) SmallGlassButton("Block") { vm.addLockedApp(LockedApp(app.packageName, app.label)) } else SmallGlassButton("Unblock") { vm.deleteLockedApp(app.packageName) }
         }
