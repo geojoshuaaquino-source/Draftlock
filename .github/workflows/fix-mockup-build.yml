@@ -17,19 +17,13 @@ jobs:
 
           p = Path('app/src/main/java/com/draftlock/app/MockupActivity.kt')
           s = p.read_text()
-
-          # Replace resource references that do not exist in this project.
           s = s.replace('R.drawable.ic_search', 'R.drawable.ic_docs')
           s = s.replace('R.drawable.ic_github', 'R.drawable.ic_google')
-
-          # ManageAppRow already declares these values before its button row.
-          # Remove the accidental second declaration that was causing req to be out of scope.
           s = re.sub(
               r'\s*val req = vm\.isRequirement\(app\.packageName\);\s*val locked = vm\.isLocked\(app\.packageName\)\s*\n\s*if \(req == null\)',
               '\n            if (req == null)',
               s,
           )
-
           p.write_text(s)
           PY
           git config user.name github-actions[bot]
@@ -39,3 +33,4 @@ jobs:
             git commit -m "Fix remaining mockup compile errors"
             git push
           fi
+          # Keep this workflow source-only; the normal Android workflow produces the APK.
