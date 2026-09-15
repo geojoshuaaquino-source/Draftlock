@@ -5,10 +5,11 @@ on:
 permissions:
   contents: write
 jobs:
-  fix:
+  fix-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Fix mockup source
         run: |
           python3 - <<'PY'
@@ -26,6 +27,7 @@ jobs:
           )
           p.write_text(s)
           PY
+
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add app/src/main/java/com/draftlock/app/MockupActivity.kt
@@ -33,4 +35,24 @@ jobs:
             git commit -m "Fix remaining mockup compile errors"
             git push
           fi
-          # Keep this workflow source-only; the normal Android workflow produces the APK.
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.13
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug
+
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DraftLock-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
