@@ -76,7 +76,11 @@ class GoogleOAuthManager(private val context: Context) {
                 context,
                 70,
                 completionIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                // AppAuth supplies the OAuth response/error as the fill-in Intent
+                // when it fires this PendingIntent. It therefore must be mutable;
+                // FLAG_IMMUTABLE causes OAuthCompletionActivity to receive an empty
+                // Intent, which produces the misleading generic "authorization failed".
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
 
             try {
