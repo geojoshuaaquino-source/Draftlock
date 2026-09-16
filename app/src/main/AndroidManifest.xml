@@ -20,7 +20,8 @@
         android:roundIcon="@drawable/ic_launcher"
         android:label="DraftLock"
         android:supportsRtl="true"
-        android:theme="@style/Theme.DraftLock">
+        android:theme="@style/Theme.DraftLock"
+        android:windowOptOutEdgeToEdgeEnforcement="true">
 
         <activity
             android:name="net.openid.appauth.RedirectUriReceiverActivity"
