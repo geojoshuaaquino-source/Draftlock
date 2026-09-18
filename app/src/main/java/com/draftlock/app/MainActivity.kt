@@ -255,8 +255,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     init {
         viewModelScope.launch {
             lastTextWordCount = countWords(text.first())
-            monitorEnabledState = store.monitorEnabledState.first()
-            monitorPrefixState = store.monitorPrefixState.first()
+            monitorEnabledState = store.monitorEnabled.first()
+            monitorPrefixState = store.monitorPrefix.first()
             if (monitorEnabledState) GoogleDocsMonitorScheduler.start(getApplication())
             val key = monitorDayKey
             monitorWords = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
