@@ -256,13 +256,14 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             lastTextWordCount = countWords(text.first())
             monitorEnabled = store.monitorEnabled.first()
             monitorPrefix = store.monitorPrefix.first()
+            if (monitorEnabled) GoogleDocsMonitorScheduler.start(getApplication())
             val key = monitorDayKey
             monitorWords = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
         }
         viewModelScope.launch {
             while (true) {
                 if (monitorEnabled && isGoogleConnected && !monitorRunning) monitorNow()
-                delay(30_000)
+                delay(10_000)
             }
         }
         viewModelScope.launch {
@@ -336,7 +337,13 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         monitorEnabled = value
         viewModelScope.launch {
             store.setMonitorEnabled(value)
-            if (value) monitorNow(resetBaseline = true) else monitorStatus = "Monitor paused"
+            if (value) {
+                GoogleDocsMonitorScheduler.start(getApplication())
+                monitorNow(resetBaseline = true)
+            } else {
+                GoogleDocsMonitorScheduler.stop(getApplication())
+                monitorStatus = "Monitor paused"
+            }
         }
     }
     fun monitorNow(resetBaseline: Boolean = false) {
