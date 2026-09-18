@@ -284,7 +284,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                     store.setSprintStartedAt(0L)
                     store.setSprintEndAt(0L)
                 }
-                DraftLockWidget.updateAll(getApplication())
+                if (remaining % 10L == 0L) DraftLockWidget.updateAll(getApplication())
                 delay(1000)
             }
         }
