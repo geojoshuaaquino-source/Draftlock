@@ -592,31 +592,315 @@ private fun ManageAppRow(vm: DraftLockViewModel, app: InstalledApp) {
 private fun SmallMode(text: String, selected: Boolean) { Box(Modifier.clip(RoundedCornerShape(12.dp)).background(if (selected) Color(0xFF4B3DD1) else Color.Transparent).padding(horizontal = 15.dp, vertical = 9.dp), contentAlignment = Alignment.Center) { Text(text, color = if (selected) Color.White else Color(0xFF8195B7), fontSize = 9.sp, fontWeight = FontWeight.Bold) } }
 
 @Composable
-private fun MockEditor(vm: DraftLockViewModel, initialText: String, initialName: String, onLibrary: () -> Unit) {
-    val googleAutoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
+private fun MockEditor(
+    vm: DraftLockViewModel,
+    initialText: String,
+    initialName: String,
+    onLibrary: () -> Unit
+) {
     val docId by vm.googleDocumentId.collectAsStateWithLifecycle()
-    var draft by remember(initialText) { mutableStateOf(initialText) }
-    var title by remember(initialName) { mutableStateOf(initialName) }
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) { SmallGlassButton("‹", onLibrary); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("The Next Chapter", color = Color(0xFF6F86A8), fontSize = 8.sp) }; Text("${wordCount(draft)} words", color = Color(0xFF789DFF), fontSize = 9.sp) }
-        Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x182C58B0)).border(1.dp, Color(0x284A70C0), RoundedCornerShape(12.dp)).padding(horizontal = 11.dp, vertical = 6.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_lock_closed), null, tint = Color(0xFF78A9FF), modifier = Modifier.size(13.dp)); Spacer(Modifier.width(5.dp)); Text(if (vm.allConditionsComplete()) "Unlocked" else "Locked", color = Color(0xFFB8CFFF), fontSize = 9.sp) } }; Spacer(Modifier.weight(1f)); Text("•••", color = Color(0xFF8398B8)) }
-        GlassSurface(Modifier.weight(1f)) {
-            OutlinedTextField(title, { title = it; vm.setDocumentName(it) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Title") }, colors = editorFieldColors())
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(draft, { draft = it; vm.onTextChanged(it); if (vm.selectedLocalDocId != null) vm.updateLocalDocContent(vm.selectedLocalDocId!!, it) }, modifier = Modifier.fillMaxWidth().weight(1f), placeholder = { Text("Start writing…", color = Color(0xFF556D91)) }, textStyle = LocalTextStyle.current.copy(color = Color(0xFFE7F0FF), fontSize = 15.sp, lineHeight = 24.sp), colors = editorFieldColors())
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { FormatKey("B"); FormatKey("I"); FormatKey("U"); FormatKey("☷"); FormatKey("↗") }
-        }
+    val revision = vm.documentRevision
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    var draft by remember(revision) { mutableStateOf(initialText) }
+    var title by remember(revision) { mutableStateOf(initialName) }
+    val hasCloudDoc = docId.isNotBlank()
+
+    LaunchedEffect(revision) {
+        focusRequester.requestFocus()
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF020817))
+            .imePadding()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${if (googleAutoSave) "Auto-save" else "Manual save"}", color = Color(0xFF67DDB5), fontSize = 9.sp, modifier = Modifier.weight(1f))
-            SmallGlassButton("Save as new") { vm.saveAsNewDoc(title) }
-            Spacer(Modifier.width(6.dp)); GradientButton(if (docId.isBlank()) "Save" else "Save", Modifier.width(105.dp)) { vm.syncTextToDoc() }
+            SmallGlassButton("‹ Library", onLibrary)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title.ifBlank { "Untitled draft" },
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    if (hasCloudDoc) "Google Docs" else "Saved on device",
+                    color = Color(0xFF6F86A8),
+                    fontSize = 8.sp
+                )
+            }
+            if (vm.sprintRunning) {
+                Text(
+                    String.format("%02d:%02d", vm.sprintRemainingSeconds / 60, vm.sprintRemainingSeconds % 60),
+                    color = Color(0xFF71DDFF),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Text("${wordCount(draft)} words", color = Color(0xFF789DFF), fontSize = 9.sp)
+            }
+        }
+
+        if (vm.sprintRunning) {
+            Text(
+                "WRITING SESSION • TIMER RUNNING",
+                color = Color(0xFF6E86AA),
+                fontSize = 8.sp,
+                letterSpacing = 1.1.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xCC071226))
+                .border(1.dp, Color(0x263E6EA8), RoundedCornerShape(20.dp))
+                .padding(6.dp)
+        ) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = {
+                    draft = it
+                    vm.onTextChanged(it)
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusRequester(focusRequester),
+                placeholder = {
+                    Text(
+                        "Start writing…",
+                        color = Color(0xFF526A8C),
+                        fontSize = 16.sp,
+                        lineHeight = 27.sp
+                    )
+                },
+                textStyle = LocalTextStyle.current.copy(
+                    color = Color(0xFFE9F1FF),
+                    fontSize = 17.sp,
+                    lineHeight = 28.sp
+                ),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedTextColor = Color(0xFFE9F1FF),
+                    unfocusedTextColor = Color(0xFFE9F1FF),
+                    cursorColor = Color(0xFF71DDFF)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (vm.sprintRunning) "Writing session active" else "Draft saved locally as you type",
+                    color = Color(0xFF67DDB5),
+                    fontSize = 9.sp
+                )
+                Text(
+                    if (hasCloudDoc) "Google Doc selected • use Sync to push changes"
+                    else "Pick or create a document from Library",
+                    color = Color(0xFF667D9F),
+                    fontSize = 8.sp
+                )
+            }
+            if (vm.sprintRunning) {
+                SmallGlassButton("End") { vm.stopSprint() }
+                Spacer(Modifier.width(6.dp))
+            }
+            if (hasCloudDoc) {
+                SmallGlassButton("Sync") { vm.syncTextToDoc() }
+                Spacer(Modifier.width(6.dp))
+            }
+            SmallGlassButton("Save as new") {
+                vm.saveAsNewDoc(title.ifBlank { "Untitled draft" })
+            }
         }
     }
 }
 
 @Composable
-private fun FormatKey(text: String) { Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x121F3C66)).clickable { }.border(1.dp, Color(0x203F6090), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Text(text, color = Color(0xFFB8C9E5), fontWeight = FontWeight.Bold, fontSize = 12.sp) } }
+private fun SprintPickerDialog(
+    vm: DraftLockViewModel,
+    localDocs: List<LocalDocument>,
+    onDismiss: () -> Unit,
+    onStarted: () -> Unit
+) {
+    var source by remember { mutableStateOf(0) }
+    var query by remember { mutableStateOf("") }
+    var newName by remember { mutableStateOf("") }
+    val cloudDocs = com.draftlock.app.data.DocsFilter.filter(vm.driveFiles, query)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 620.dp),
+            color = Color(0xFF07142A),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Start a writing session", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Pick a document first. The timer starts only after the editor opens.",
+                    color = Color(0xFF7F93B3),
+                    fontSize = 11.sp
+                )
+                Text("SESSION LENGTH", color = Color(0xFF6F86AA), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(15, 25, 45, 60).forEach { minutes ->
+                        SmallGlassButton(
+                            if (vm.sprintMinutes.value == minutes) "✓ ${minutes}m" else "${minutes}m"
+                        ) { vm.setSprintMinutes(minutes) }
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xA50A1A32)).padding(4.dp)
+                ) {
+                    Seg("On device", source == 0) { source = 0; query = "" }
+                    Seg("Google Docs", source == 1) { source = 1; query = "" }
+                }
+
+                if (source == 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("RECENT LOCAL DRAFTS", color = Color(0xFF6F86AA), fontSize = 9.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        SmallGlassButton("New") { if (newName.isBlank()) newName = "Untitled session" }
+                    }
+                    if (newName.isNotBlank()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedTextField(
+                                value = newName,
+                                onValueChange = { newName = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                placeholder = { Text("New draft name") },
+                                colors = editorFieldColors()
+                            )
+                            GradientButton("Create") {
+                                vm.createLocalDoc(newName) {
+                                    vm.startSprint()
+                                    onStarted()
+                                }
+                            }
+                        }
+                    }
+                    LazyColumn(
+                        Modifier.fillMaxWidth().heightIn(max = 250.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        items(localDocs, key = { it.id }) { doc ->
+                            Box(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .background(Color(0xA50A1A32))
+                                    .clickable(enabled = !vm.isSyncing) {
+                                        vm.openLocalDoc(doc) {
+                                            vm.startSprint()
+                                            onStarted()
+                                        }
+                                    }
+                                    .padding(12.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(painterResource(R.drawable.ic_docs), null, tint = Color(0xFF719DFF), modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(9.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(doc.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("${doc.wordCount} words", color = Color(0xFF7187A9), fontSize = 9.sp)
+                                    }
+                                    Text("START →", color = Color(0xFF71DDFF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        if (localDocs.isEmpty()) item {
+                            EmptyCard("No local drafts", "Create a new draft above to start.")
+                        }
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("GOOGLE DOCS", color = Color(0xFF6F86AA), fontSize = 9.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        if (vm.isGoogleConnected) SmallGlassButton("Sync all") { vm.fetchDriveFiles() }
+                    }
+                    if (!vm.isGoogleConnected) {
+                        EmptyCard("Google not connected", "Connect Google in Library before starting a cloud session.")
+                    } else {
+                        SearchField(query, "Search all Google Docs…") { query = it }
+                        if (vm.isSyncing) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color(0xFF5C8FFF))
+                        LazyColumn(
+                            Modifier.fillMaxWidth().heightIn(max = 250.dp),
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            items(cloudDocs, key = { it.id }) { file ->
+                                Box(
+                                    Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(13.dp))
+                                        .background(Color(0xA50A1A32))
+                                        .clickable(enabled = !vm.isSyncing) {
+                                            vm.loadDocContent(file.id, file.name) {
+                                                vm.startSprint()
+                                                onStarted()
+                                            }
+                                        }
+                                        .padding(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(painterResource(R.drawable.ic_docs), null, tint = Color(0xFF719DFF), modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(9.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(file.name, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Text("Edited ${file.modifiedTime.take(10)}", color = Color(0xFF7187A9), fontSize = 9.sp)
+                                        }
+                                        Text("START →", color = Color(0xFF71DDFF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            if (cloudDocs.isEmpty()) {
+                                item {
+                                    EmptyCard(
+                                        if (query.isBlank()) "No Google Docs indexed" else "No matching Google Docs",
+                                        if (query.isBlank()) "Sync all to index your full Drive, then pick a document."
+                                        else "Search runs across the full indexed Google Docs list."
+                                    )
+                                }
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedTextField(
+                                value = newName,
+                                onValueChange = { newName = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                label = { Text("New Google Doc") },
+                                colors = editorFieldColors()
+                            )
+                            GradientButton("Create") {
+                                if (newName.isNotBlank()) {
+                                    vm.prepareNewGoogleDocSession(newName) {
+                                        vm.startSprint()
+                                        onStarted()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                    Text("Cancel", color = Color(0xFF8398B8))
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {
