@@ -174,10 +174,10 @@ class MainActivity : ComponentActivity() {
             }
             if (ok) {
                 vm.checkGoogleConnection()
-                vm.saveGoogleStatus("Gmail linked ✓ Fetching chapters…")
+                vm.saveGoogleStatus("Google linked ✓ Fetching documents…")
                 vm.fetchDriveFiles()
             } else {
-                vm.saveGoogleStatus("Login failed: $msg — check SHA1 + Package com.draftlock.app + client type Android (not Web) in console.cloud.google.com → Credentials")
+                vm.saveGoogleStatus("Google sign-in failed: $msg")
             }
         }
     }
