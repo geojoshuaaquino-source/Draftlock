@@ -89,6 +89,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.draftlock.app.data.AppRequirement
 import com.draftlock.app.data.DraftLockDatabase
 import com.draftlock.app.data.LockedApp
+import com.draftlock.app.data.LocalDocument
 import com.draftlock.app.data.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -231,6 +232,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var sprintRemainingSeconds by mutableStateOf(0L)
     var sprintRunning by mutableStateOf(false)
     var selectedLocalDocId by mutableStateOf<Long?>(null)
+    var documentRevision by mutableStateOf(0)
 
     var usageMinutes by mutableStateOf<Map<String, Int>>(emptyMap())
     var usageAccess by mutableStateOf(usage.hasUsageAccess())
@@ -278,11 +280,27 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         val words = countWords(value)
         val delta = words - lastTextWordCount
         lastTextWordCount = words
+        val localId = selectedLocalDocId
         viewModelScope.launch {
             store.setDocumentText(value)
+            if (localId != null) {
+                val existing = db.dao().getLocalDoc(localId)
+                if (existing != null) {
+                    db.dao().upsertLocalDoc(
+                        existing.copy(
+                            content = value,
+                            wordCount = words,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
             if (delta != 0) {
-                val current = todayWords.value
-                store.setTodayWords(current + delta, UsageTracker.periodStartMillis(resetMinutes.value).toString())
+                val current = store.todayWords.first()
+                store.setTodayWords(
+                    current + delta,
+                    UsageTracker.periodStartMillis(resetMinutes.value).toString()
+                )
             }
         }
     }
@@ -308,11 +326,31 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun deleteLockedApp(pkg: String) = viewModelScope.launch { db.dao().deleteLockedApp(pkg); blocker.unsuspend(listOf(pkg)) }
     fun isRequirement(pkg: String): AppRequirement? = requirements.value.find { it.packageName == pkg }
     fun isLocked(pkg: String): LockedApp? = lockedApps.value.find { it.packageName == pkg }
-    fun createLocalDoc(title: String) = viewModelScope.launch {
-        val doc = com.draftlock.app.data.LocalDocument(title = title.ifBlank { "Untitled Quest" }, content = "", wordCount = 0, updatedAt = System.currentTimeMillis())
+    fun createLocalDoc(title: String, onCreated: (Long) -> Unit = {}) = viewModelScope.launch {
+        val doc = LocalDocument(
+            title = title.ifBlank { "Untitled Quest" },
+            content = "",
+            wordCount = 0,
+            updatedAt = System.currentTimeMillis()
+        )
         val id = db.dao().upsertLocalDoc(doc)
         selectedLocalDocId = id
-        saveGoogleStatus("Forged local quest: ${doc.title}")
+        documentRevision += 1
+        store.setDocumentName(doc.title)
+        store.setDocumentText("")
+        lastTextWordCount = 0
+        saveGoogleStatus("Created local draft")
+        onCreated(id)
+    }
+
+    fun openLocalDoc(doc: LocalDocument, onReady: () -> Unit = {}) = viewModelScope.launch {
+        selectedLocalDocId = doc.id
+        documentRevision += 1
+        store.setDocumentName(doc.title)
+        store.setDocumentText(doc.content)
+        lastTextWordCount = countWords(doc.content)
+        saveGoogleStatus("Opened local draft")
+        onReady()
     }
     fun updateLocalDocContent(id: Long, newContent: String) = viewModelScope.launch {
         val existing = db.dao().getLocalDoc(id) ?: return@launch
@@ -418,7 +456,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
     }
-    fun loadDocContent(docId: String, docName: String) {
+    fun loadDocContent(docId: String, docName: String, onLoaded: () -> Unit = {}) {
         val manager = GoogleOAuthManager(getApplication())
         if (!manager.isConfigured || manager.loadState()==null) { saveGoogleStatus("Connect Gmail first"); return }
         isSyncing = true; saveGoogleStatus("Opening $docName…")
@@ -428,9 +466,15 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                 try {
                     val body = docsRepo.getDocumentText(token, docId)
                     withContext(Dispatchers.Main) {
-                        setGoogleDocument(docId); setDocumentName(docName)
-                        store.setDocumentText(body); lastTextWordCount = countWords(body)
-                        saveGoogleStatus("Loaded $docName (${countWords(body)}w) — edit & save"); isSyncing=false
+                        setGoogleDocument(docId)
+                        setDocumentName(docName)
+                        selectedLocalDocId = null
+                        documentRevision += 1
+                        store.setDocumentText(body)
+                        lastTextWordCount = countWords(body)
+                        saveGoogleStatus("Loaded " + docName + " (" + countWords(body) + "w) — edit & save")
+                        isSyncing = false
+                        onLoaded()
                     }
                 } catch (e: Exception) { withContext(Dispatchers.Main){ saveGoogleStatus("Open failed: ${e.message}"); isSyncing=false } }
             }
