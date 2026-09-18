@@ -333,8 +333,8 @@ private fun MockHome(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("GOOGLE DOC MONITOR", color = Color(0xFF6E86AA), fontSize = 9.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
-                        Text(if (vm.monitorEnabledState) "\${vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                        Text(if (vm.monitorPrefixState.isBlank()) "All Google Docs" else "Files starting with \"\${vm.monitorPrefixState}\"", color = Color(0xFF7F93B3), fontSize = 10.sp)
+                        Text(if (vm.monitorEnabledState) "$" + "{vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        Text(if (vm.monitorPrefixState.isBlank()) "All Google Docs" else "Files starting with \"" + vm.monitorPrefixState + "\"", color = Color(0xFF7F93B3), fontSize = 10.sp)
                     }
                     Switch(checked = vm.monitorEnabledState, onCheckedChange = vm::updateMonitorEnabled)
                 }
@@ -342,7 +342,7 @@ private fun MockHome(
                 LinearProgressIndicator(progress = { monitorProgress }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF62D8FF), trackColor = Color(0x19365A8A))
                 Spacer(Modifier.height(7.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("\${vm.monitorWords} / \${monitorGoal} words", color = Color(0xFF9BB0D0), fontSize = 10.sp, modifier = Modifier.weight(1f))
+                    Text(vm.monitorWords.toString() + " / " + monitorGoal + " words", color = Color(0xFF9BB0D0), fontSize = 10.sp, modifier = Modifier.weight(1f))
                     Text(vm.monitorStatus, color = Color(0xFF7187A9), fontSize = 9.sp)
                 }
                 Spacer(Modifier.height(8.dp))
@@ -641,132 +641,52 @@ private fun MockEditor(
     var draft by remember(revision) { mutableStateOf(initialText) }
     var title by remember(revision) { mutableStateOf(initialName) }
     val hasCloudDoc = docId.isNotBlank()
+    LaunchedEffect(revision) { focusRequester.requestFocus() }
 
-    LaunchedEffect(revision) {
-        focusRequester.requestFocus()
-    }
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0xFF020817))
-            .imePadding()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize().background(Color(0xFF020817)).imePadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             SmallGlassButton("‹ Library", onLibrary)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    title.ifBlank { "Untitled draft" },
-                    color = Color.White,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    if (hasCloudDoc) "Google Docs" else "Saved on device",
-                    color = Color(0xFF6F86A8),
-                    fontSize = 8.sp
-                )
+                Text(title.ifBlank { "Untitled draft" }, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Text(if (hasCloudDoc) "Google Docs" else "Saved on device", color = Color(0xFF7188AA), fontSize = 9.sp)
             }
-            if (vm.sprintRunning) {
-                Text(
-                    String.format("%02d:%02d", vm.sprintRemainingSeconds / 60, vm.sprintRemainingSeconds % 60),
-                    color = Color(0xFF71DDFF),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            } else {
-                Text("${wordCount(draft)} words", color = Color(0xFF789DFF), fontSize = 9.sp)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(wordCount(draft).toString() + " words", color = Color(0xFF9DB6E2), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                if (vm.sprintRunning) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(String.format("%02d:%02d", vm.sprintRemainingSeconds / 60, vm.sprintRemainingSeconds % 60), color = Color(0xFF71DDFF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
-
         if (vm.sprintRunning) {
-            Text(
-                "WRITING SESSION • TIMER RUNNING",
-                color = Color(0xFF6E86AA),
-                fontSize = 8.sp,
-                letterSpacing = 1.1.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF67DDB5)))
+                Spacer(Modifier.width(7.dp))
+                Text("WRITING SESSION ACTIVE", color = Color(0xFF67DDB5), fontSize = 8.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.Bold)
+            }
         }
-
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xCC071226))
-                .border(1.dp, Color(0x263E6EA8), RoundedCornerShape(20.dp))
-                .padding(6.dp)
-        ) {
+        Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xCC071226))) {
             OutlinedTextField(
                 value = draft,
-                onValueChange = {
-                    draft = it
-                    vm.onTextChanged(it)
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .focusRequester(focusRequester),
-                placeholder = {
-                    Text(
-                        "Start writing…",
-                        color = Color(0xFF526A8C),
-                        fontSize = 16.sp,
-                        lineHeight = 27.sp
-                    )
-                },
-                textStyle = LocalTextStyle.current.copy(
-                    color = Color(0xFFE9F1FF),
-                    fontSize = 17.sp,
-                    lineHeight = 28.sp
-                ),
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedTextColor = Color(0xFFE9F1FF),
-                    unfocusedTextColor = Color(0xFFE9F1FF),
-                    cursorColor = Color(0xFF71DDFF)
-                ),
-                shape = RoundedCornerShape(16.dp)
+                onValueChange = { draft = it; vm.onTextChanged(it) },
+                modifier = Modifier.fillMaxSize().focusRequester(focusRequester),
+                placeholder = { Text("Start writing…", color = Color(0xFF526A8C), fontSize = 17.sp, lineHeight = 29.sp) },
+                textStyle = LocalTextStyle.current.copy(color = Color(0xFFE9F1FF), fontSize = 17.sp, lineHeight = 29.sp),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedTextColor = Color(0xFFE9F1FF), unfocusedTextColor = Color(0xFFE9F1FF), cursorColor = Color(0xFF71DDFF)),
+                shape = RoundedCornerShape(18.dp)
             )
         }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    if (vm.sprintRunning) "Writing session active" else "Draft saved locally as you type",
-                    color = Color(0xFF67DDB5),
-                    fontSize = 9.sp
-                )
-                Text(
-                    if (hasCloudDoc) "Google Doc selected • use Sync to push changes"
-                    else "Pick or create a document from Library",
-                    color = Color(0xFF667D9F),
-                    fontSize = 8.sp
-                )
+                Text(if (hasCloudDoc) "Google Doc selected" else "Saved locally", color = Color(0xFF67DDB5), fontSize = 9.sp, fontWeight = FontWeight.Medium)
+                Text(if (hasCloudDoc) "Changes can be synced from Library" else "Pick or create a document from Library", color = Color(0xFF667D9F), fontSize = 8.sp)
             }
-            if (vm.sprintRunning) {
-                SmallGlassButton("End") { vm.stopSprint() }
-                Spacer(Modifier.width(6.dp))
-            }
-            if (hasCloudDoc) {
-                SmallGlassButton("Sync") { vm.syncTextToDoc() }
-                Spacer(Modifier.width(6.dp))
-            }
-            SmallGlassButton("Save as new") {
-                vm.saveAsNewDoc(title.ifBlank { "Untitled draft" })
-            }
+            if (vm.sprintRunning) Text("KEEP WRITING", color = Color(0xFF8198BD), fontSize = 8.sp, letterSpacing = 0.9.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
-
 @Composable
 private fun SprintPickerDialog(
     vm: DraftLockViewModel,
