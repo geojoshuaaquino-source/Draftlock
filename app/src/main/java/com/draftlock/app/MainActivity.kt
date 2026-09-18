@@ -238,7 +238,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var blockingDiagnostics by mutableStateOf(blocker.diagnostics())
     var syncStatus by mutableStateOf("Local only")
     var driveFiles by mutableStateOf<List<RemoteFile>>(emptyList())
-    var driveQuery by mutableStateOf("DND")
+    var driveQuery by mutableStateOf("")
     var isSyncing by mutableStateOf(false)
     var isGoogleConnected by mutableStateOf(try { GoogleOAuthManager(getApplication()).isConnected() } catch (_: Exception) { false })
     private var lastTextWordCount = 0
@@ -359,7 +359,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             saveGoogleStatus("Google Picker returned no document")
             return
         }
-        loadDocContent(documentId, "Selected Google Doc")
+        loadDocContent(documentId, "Google Doc")
     }
 
     fun startGoogleAuth(context: Context) {
@@ -377,7 +377,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             if (token == null) { isSyncing = false; saveGoogleStatus("Token failed"); return@withFreshToken }
             viewModelScope.launch(Dispatchers.IO) {
                 try {
-                    val files = docsRepo.findFiles(token, query.ifBlank { "DND" })
+                    val files = docsRepo.findFiles(token, query)
                     withContext(Dispatchers.Main) { driveFiles = files; saveGoogleStatus("Found ${files.size} docs"); isSyncing = false }
                 } catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Drive error: ${e.message}"); isSyncing = false } }
             }
