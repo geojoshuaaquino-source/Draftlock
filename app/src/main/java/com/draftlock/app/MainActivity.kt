@@ -131,6 +131,29 @@ class MainActivity : ComponentActivity() {
     @Deprecated("Use Activity Result APIs when refactoring the legacy flow")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == GoogleOAuthManager.PICKER_REQUEST_CODE) {
+            if (resultCode != RESULT_OK || data == null) {
+                draftLockVm?.saveGoogleStatus("Google Picker cancelled")
+                return
+            }
+            oauthManager.handlePickerResult(data) { pickedIds, msg ->
+                runOnUiThread {
+                    val vm = draftLockVm
+                    if (vm == null) {
+                        pendingOAuthIntent = data
+                        return@runOnUiThread
+                    }
+                    if (pickedIds.isNotEmpty()) {
+                        vm.checkGoogleConnection()
+                        vm.openPickedGoogleDoc(pickedIds.first())
+                    } else {
+                        vm.saveGoogleStatus(msg)
+                    }
+                }
+            }
+            return
+        }
+
         if (requestCode != GoogleOAuthManager.AUTH_REQUEST_CODE || data == null) return
         oauthManager.handleResult(data) { ok, msg ->
             android.util.Log.i("DraftLock", "OAuth activity result ok=$ok msg=$msg")
@@ -299,6 +322,29 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             else -> "Tap Connect Gmail to link Drive"
         }
     }
+    fun startGooglePicker(context: Context) {
+        val mgr = GoogleOAuthManager(context)
+        if (!mgr.isConfigured) {
+            saveGoogleStatus("Google not configured — add GOOGLE_CLIENT_ID in Settings")
+            return
+        }
+        isSyncing = true
+        saveGoogleStatus("Opening Google Docs picker…")
+        mgr.startPicker { err ->
+            isSyncing = false
+            saveGoogleStatus(err)
+        }
+    }
+
+    fun openPickedGoogleDoc(documentId: String) {
+        if (documentId.isBlank()) {
+            isSyncing = false
+            saveGoogleStatus("Google Picker returned no document")
+            return
+        }
+        loadDocContent(documentId, "Selected Google Doc")
+    }
+
     fun startGoogleAuth(context: Context) {
         val mgr = GoogleOAuthManager(context)
         if (!mgr.isConfigured) { saveGoogleStatus("No Client ID — add GOOGLE_CLIENT_ID in local.properties or Settings → Gmail"); return }
@@ -778,10 +824,10 @@ fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, do
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, label = { Text("DOC NAME", style = MaterialTheme.typography.labelSmall, letterSpacing=0.8.sp) }, placeholder = { Text("e.g. Chapter 3 — The Vault", color=DraftLockColors.muted, fontSize=12.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line, focusedContainerColor = Color(0xFF111114), unfocusedContainerColor = Color(0xFF111114), focusedTextColor = DraftLockColors.ink, unfocusedTextColor = DraftLockColors.ink, cursorColor = DraftLockColors.accent))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.weight(1f).height(40.dp).background(DraftLockColors.bg).clickable { showPicker = true }.padding(horizontal=10.dp), contentAlignment = Alignment.CenterStart) {
+                    Box(Modifier.weight(1f).height(40.dp).background(DraftLockColors.bg).clickable { if (vm.isGoogleConfigured) vm.startGooglePicker(ctx) else vm.startGoogleAuth(ctx) }.padding(horizontal=10.dp), contentAlignment = Alignment.CenterStart) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Icon(painterResource(R.drawable.ic_docs), null, tint=DraftLockColors.accent, modifier=Modifier.size(14.dp))
-                            Text(if (vm.isGoogleConnected) "PICK DOC  •  ${vm.driveFiles.size} linked" else "CONNECT GMAIL TO PICK", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=if(vm.isGoogleConnected) DraftLockColors.ink else DraftLockColors.muted, fontSize=10.sp, letterSpacing=0.6.sp)
+                            Text(if (vm.isGoogleConnected) "PICK GOOGLE DOC" else "CONNECT GOOGLE + PICK DOC", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=if(vm.isGoogleConnected) DraftLockColors.ink else DraftLockColors.muted, fontSize=10.sp, letterSpacing=0.6.sp)
                         }
                     }
                     Box(Modifier.weight(1f).height(40.dp).background(DraftLockColors.accent).clickable { vm.setDocumentName(nameInput.ifBlank { "Untitled Vault" }); vm.saveGoogleStatus("Name set: ${nameInput.take(18)}") }, contentAlignment = Alignment.Center) { Text("APPLY NAME", fontWeight=FontWeight.Black, color=Color.Black, fontSize=11.sp, letterSpacing=0.6.sp) }
@@ -796,7 +842,7 @@ fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, do
                     Box(Modifier.weight(1f).height(42.dp).background(DraftLockColors.panelElevated).clickable { vm.saveAsNewDoc(nameInput) }, contentAlignment = Alignment.Center) { Text("SAVE AS NEW", fontWeight=FontWeight.Black, color=DraftLockColors.ink, fontSize=11.sp) }
                     Box(Modifier.weight(0.7f).height(42.dp).background(Color(0xFF1A1A1E)).clickable { if(vm.googleDocumentId.value.isNotBlank()) vm.loadDocContent(vm.googleDocumentId.value, vm.documentName.value) }, contentAlignment = Alignment.Center) { Text("RELOAD", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=DraftLockColors.muted, fontSize=10.sp) }
                 }
-                if (!vm.isGoogleConnected) Text("Gmail not linked — tap PICK DOC to connect, then choose a chapter to edit. Local vault saves instantly; Drive saves on SAVE.", style = MaterialTheme.typography.labelSmall, color=DraftLockColors.muted, fontSize=10.sp)
+                if (!vm.isGoogleConnected) Text("Tap PICK GOOGLE DOC to browse your Drive and choose any Google Doc. Local vault saves instantly; Drive saves on SAVE.", style = MaterialTheme.typography.labelSmall, color=DraftLockColors.muted, fontSize=10.sp)
             }
         }
         // Editor — true dark, mono, sharp 0, hairline with linked grid/halftone assets
