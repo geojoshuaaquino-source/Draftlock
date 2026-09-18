@@ -29,6 +29,11 @@ class SettingsStore(private val context: Context) {
         val todayKey = stringPreferencesKey("today_key")
         val sprintMinutes = intPreferencesKey("sprint_minutes")
         val sprintStartedAt = longPreferencesKey("sprint_started_at")
+        val monitorEnabled = booleanPreferencesKey("monitor_enabled")
+        val monitorPrefix = stringPreferencesKey("monitor_prefix")
+        val monitorWords = intPreferencesKey("monitor_words")
+        val monitorDayKey = stringPreferencesKey("monitor_day_key")
+        val monitorCounts = stringPreferencesKey("monitor_counts")
     }
 
     val quota: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.quota] ?: 1000 }
@@ -45,6 +50,11 @@ class SettingsStore(private val context: Context) {
     val todayKey: Flow<String> = context.draftLockDataStore.data.map { it[Keys.todayKey] ?: "" }
     val sprintMinutes: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.sprintMinutes] ?: 25 }
     val sprintStartedAt: Flow<Long> = context.draftLockDataStore.data.map { it[Keys.sprintStartedAt] ?: 0L }
+    val monitorEnabled: Flow<Boolean> = context.draftLockDataStore.data.map { it[Keys.monitorEnabled] ?: false }
+    val monitorPrefix: Flow<String> = context.draftLockDataStore.data.map { it[Keys.monitorPrefix] ?: "" }
+    val monitorWords: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.monitorWords] ?: 0 }
+    val monitorDayKey: Flow<String> = context.draftLockDataStore.data.map { it[Keys.monitorDayKey] ?: "" }
+    val monitorCounts: Flow<String> = context.draftLockDataStore.data.map { it[Keys.monitorCounts] ?: "{}" }
 
     suspend fun setQuota(value: Int) = context.draftLockDataStore.edit { it[Keys.quota] = value.coerceAtLeast(1) }
     suspend fun setResetMinutes(value: Int) = context.draftLockDataStore.edit { it[Keys.resetMinutes] = value.coerceIn(0, 1439) }
@@ -66,6 +76,10 @@ class SettingsStore(private val context: Context) {
     suspend fun setGoogleAutoSave(value: Boolean) = context.draftLockDataStore.edit { it[Keys.googleAutoSave] = value }
     suspend fun setSprintMinutes(value: Int) = context.draftLockDataStore.edit { it[Keys.sprintMinutes] = value.coerceIn(5, 120) }
     suspend fun setSprintStartedAt(value: Long) = context.draftLockDataStore.edit { it[Keys.sprintStartedAt] = value }
+    suspend fun setMonitorEnabled(value: Boolean) = context.draftLockDataStore.edit { it[Keys.monitorEnabled] = value }
+    suspend fun setMonitorPrefix(value: String) = context.draftLockDataStore.edit { it[Keys.monitorPrefix] = value }
+    suspend fun setMonitorWords(value: Int, key: String) = context.draftLockDataStore.edit { it[Keys.monitorWords] = value.coerceAtLeast(0); it[Keys.monitorDayKey] = key }
+    suspend fun setMonitorCounts(value: String) = context.draftLockDataStore.edit { it[Keys.monitorCounts] = value }
 
     suspend fun setTodayWords(value: Int, key: String) {
         context.draftLockDataStore.edit {
