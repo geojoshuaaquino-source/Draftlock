@@ -913,25 +913,6 @@ private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {
         item { GlassSurface { SettingTextField("Daily word quota", quotaText) { quotaText = it.filter(Char::isDigit) }; GradientButton("Save quota", Modifier.fillMaxWidth()) { vm.setQuota(quotaText.toIntOrNull() ?: quota) } } }
         item { GlassSurface { SettingTextField("Reset minutes after period start", resetText) { resetText = it.filter(Char::isDigit) }; GradientButton("Save reset", Modifier.fillMaxWidth()) { vm.setResetMinutes(resetText.toIntOrNull()?.coerceIn(0,1439) ?: reset) } } }
         item { GlassSurface { SettingRow("Unlock logic", logic) { Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { SmallGlassButton("AND") { vm.setLogic("AND") }; SmallGlassButton("OR") { vm.setLogic("OR") } } }; Spacer(Modifier.height(8.dp)); SettingRow("Google auto-save", if (autoSave) "Enabled" else "Disabled") { Switch(autoSave, vm::setGoogleAutoSave) } } }
-        item {
-            val sprintMinutes by vm.sprintMinutes.collectAsStateWithLifecycle()
-            GlassSurface {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Timed sprint", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text(if (vm.sprintRunning) "Sprint running" else "Ready to focus", color = Color(0xFF7187A9), fontSize = 9.sp)
-                    }
-                    Text(String.format("%02d:%02d", vm.sprintRemainingSeconds / 60, vm.sprintRemainingSeconds % 60), color = Color(0xFF78DFFF), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(15, 25, 45, 60).forEach { minutes -> SmallGlassButton(minutes.toString() + "m") { vm.setSprintMinutes(minutes) } }
-                }
-                Spacer(Modifier.height(8.dp))
-                if (vm.sprintRunning) SmallGlassButton("Stop sprint") { vm.stopSprint() }
-                else GradientButton("Start " + sprintMinutes + " minute sprint", Modifier.fillMaxWidth()) { vm.startSprint() }
-            }
-        }
         item { GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color(0xFF6EDCFF) else Color.White, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("Google Drive", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.syncStatus, color = Color(0xFF7489AA), fontSize = 9.sp) }; if (vm.isGoogleConnected) SmallGlassButton("Disconnect") { com.draftlock.app.GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() } else GradientButton("Connect", Modifier.width(92.dp)) { vm.startGoogleAuth(context) } } } }
         item { GlassSurface { Text("Blocking & access", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.blockingDiagnostics, color = if (vm.blockingAvailable) Color(0xFF6DE0B4) else Color(0xFFFF789A), fontSize = 9.sp); Spacer(Modifier.height(8.dp)); Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { SmallGlassButton("Accessibility") { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }; SmallGlassButton("Usage access") { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } } } }
         item { GradientButton("Focus & locked apps", Modifier.fillMaxWidth(), onApps) }
