@@ -32,9 +32,9 @@ class GoogleOAuthManager(private val context: Context) {
             "com.googleusercontent.apps.${effectiveClientId.substringBefore(".apps.googleusercontent.com")}:/oauth2redirect"
         )
 
-    // drive.file is sufficient for the Docs API operations DraftLock performs
-    // (create/read/update specific files) and is the recommended narrow scope.
-    private val driveScope = "https://www.googleapis.com/auth/drive.file"
+    // Full Drive access is required for DraftLock's cloud-wide Google Docs search
+    // and editing of existing documents the user can access.
+    private val driveScope = "https://www.googleapis.com/auth/drive"
 
     val isConfigured: Boolean
         get() = effectiveClientId.endsWith(".apps.googleusercontent.com") &&
