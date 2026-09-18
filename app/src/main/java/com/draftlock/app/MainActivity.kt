@@ -243,8 +243,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var driveFiles by mutableStateOf<List<RemoteFile>>(emptyList())
     var driveQuery by mutableStateOf("")
     var isSyncing by mutableStateOf(false)
-    var monitorEnabled by mutableStateOf(false)
-    var monitorPrefix by mutableStateOf("")
+    var monitorEnabledState by mutableStateOf(false)
+    var monitorPrefixState by mutableStateOf("")
     var monitorWords by mutableStateOf(0)
     var monitorMatchedFiles by mutableStateOf(0)
     var monitorStatus by mutableStateOf("Monitor off")
@@ -255,15 +255,15 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     init {
         viewModelScope.launch {
             lastTextWordCount = countWords(text.first())
-            monitorEnabled = store.monitorEnabled.first()
-            monitorPrefix = store.monitorPrefix.first()
-            if (monitorEnabled) GoogleDocsMonitorScheduler.start(getApplication())
+            monitorEnabledState = store.monitorEnabledState.first()
+            monitorPrefixState = store.monitorPrefixState.first()
+            if (monitorEnabledState) GoogleDocsMonitorScheduler.start(getApplication())
             val key = monitorDayKey
             monitorWords = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
         }
         viewModelScope.launch {
             while (true) {
-                if (monitorEnabled && isGoogleConnected && !monitorRunning) monitorNow()
+                if (monitorEnabledState && isGoogleConnected && !monitorRunning) monitorNow()
                 delay(10_000)
             }
         }
@@ -331,11 +331,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun setLogic(value: String) = viewModelScope.launch { store.setLogic(value); applyBlocking() }
     fun setSprintMinutes(value: Int) = viewModelScope.launch { store.setSprintMinutes(value) }
     fun updateMonitorPrefix(value: String) {
-        monitorPrefix = value.trim()
-        viewModelScope.launch { store.setMonitorPrefix(monitorPrefix) }
+        monitorPrefixState = value.trim()
+        viewModelScope.launch { store.setMonitorPrefix(monitorPrefixState) }
     }
     fun updateMonitorEnabled(value: Boolean) {
-        monitorEnabled = value
+        monitorEnabledState = value
         viewModelScope.launch {
             store.setMonitorEnabled(value)
             if (value) {
@@ -351,7 +351,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         if (monitorRunning || !isGoogleConnected) return
         monitorRunning = true
         monitorStatus = "Checking matching Google Docs…"
-        val prefix = monitorPrefix.trim()
+        val prefix = monitorPrefixState.trim()
         viewModelScope.launch {
             try {
                 val counts = JSONObject(store.monitorCounts.first())
