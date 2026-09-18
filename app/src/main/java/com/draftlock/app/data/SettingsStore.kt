@@ -27,6 +27,8 @@ class SettingsStore(private val context: Context) {
         val googleAutoSave = booleanPreferencesKey("google_auto_save")
         val todayWords = intPreferencesKey("today_words")
         val todayKey = stringPreferencesKey("today_key")
+        val sprintMinutes = intPreferencesKey("sprint_minutes")
+        val sprintStartedAt = longPreferencesKey("sprint_started_at")
     }
 
     val quota: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.quota] ?: 1000 }
@@ -41,6 +43,8 @@ class SettingsStore(private val context: Context) {
     val googleAutoSave: Flow<Boolean> = context.draftLockDataStore.data.map { it[Keys.googleAutoSave] ?: true }
     val todayWords: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.todayWords] ?: 0 }
     val todayKey: Flow<String> = context.draftLockDataStore.data.map { it[Keys.todayKey] ?: "" }
+    val sprintMinutes: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.sprintMinutes] ?: 25 }
+    val sprintStartedAt: Flow<Long> = context.draftLockDataStore.data.map { it[Keys.sprintStartedAt] ?: 0L }
 
     suspend fun setQuota(value: Int) = context.draftLockDataStore.edit { it[Keys.quota] = value.coerceAtLeast(1) }
     suspend fun setResetMinutes(value: Int) = context.draftLockDataStore.edit { it[Keys.resetMinutes] = value.coerceIn(0, 1439) }
@@ -60,6 +64,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setGoogleFolderId(value: String) = context.draftLockDataStore.edit { it[Keys.googleFolderId] = value }
     suspend fun setGoogleDocumentId(value: String) = context.draftLockDataStore.edit { it[Keys.googleDocumentId] = value }
     suspend fun setGoogleAutoSave(value: Boolean) = context.draftLockDataStore.edit { it[Keys.googleAutoSave] = value }
+    suspend fun setSprintMinutes(value: Int) = context.draftLockDataStore.edit { it[Keys.sprintMinutes] = value.coerceIn(5, 120) }
+    suspend fun setSprintStartedAt(value: Long) = context.draftLockDataStore.edit { it[Keys.sprintStartedAt] = value }
 
     suspend fun setTodayWords(value: Int, key: String) {
         context.draftLockDataStore.edit {
