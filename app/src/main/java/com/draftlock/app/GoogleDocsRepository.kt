@@ -78,7 +78,9 @@ class GoogleDocsRepository {
         }
     }
 
-    fun getFileName(accessToken: String, fileId: String): String {\n        val json = JSONObject(request(accessToken, "GET", "$DRIVE_BASE/files/$fileId?fields=name"))\n        return json.optString("name", "Google Doc")\n    }\n    fun getDocumentText(accessToken: String, documentId: String): String {
+    fun getFileName(accessToken: String, fileId: String): String {
+        val json = JSONObject(request(accessToken, "GET", "$DRIVE_BASE/files/$fileId?fields=name"))\n        return json.optString("name", "Google Doc")\n    }
+    fun getDocumentText(accessToken: String, documentId: String): String {
         val json = JSONObject(request(accessToken, "GET", "$DOCS_BASE/documents/$documentId"))
         val body = json.optJSONObject("body") ?: return ""
         val content = body.optJSONArray("content") ?: return ""
