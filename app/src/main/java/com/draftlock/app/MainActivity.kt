@@ -128,6 +128,29 @@ class MainActivity : ComponentActivity() {
             DraftLockApp(vm)
         }
     }
+    @Deprecated("Use Activity Result APIs when refactoring the legacy flow")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != GoogleOAuthManager.AUTH_REQUEST_CODE || data == null) return
+        oauthManager.handleResult(data) { ok, msg ->
+            android.util.Log.i("DraftLock", "OAuth activity result ok=$ok msg=$msg")
+            runOnUiThread {
+                val vm = draftLockVm
+                if (vm == null) {
+                    pendingOAuthIntent = data
+                    return@runOnUiThread
+                }
+                if (ok) {
+                    vm.checkGoogleConnection()
+                    vm.saveGoogleStatus("Google account connected")
+                    vm.fetchDriveFiles()
+                } else {
+                    vm.saveGoogleStatus("Google sign-in failed: $msg")
+                }
+            }
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // if vm not yet bound, stash
