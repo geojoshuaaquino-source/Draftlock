@@ -302,8 +302,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun startGoogleAuth(context: Context) {
         val mgr = GoogleOAuthManager(context)
         if (!mgr.isConfigured) { saveGoogleStatus("No Client ID — add GOOGLE_CLIENT_ID in local.properties or Settings → Gmail"); return }
-        mgr.startAuthorization { err -> saveGoogleStatus(err) }
         saveGoogleStatus("Opening Google sign-in…")
+        mgr.startAuthorization { err -> saveGoogleStatus(err) }
     }
     fun fetchDriveFiles(query: String = driveQuery) {
         val manager = GoogleOAuthManager(getApplication())
