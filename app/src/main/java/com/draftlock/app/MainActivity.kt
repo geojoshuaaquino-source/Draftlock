@@ -242,10 +242,29 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var driveFiles by mutableStateOf<List<RemoteFile>>(emptyList())
     var driveQuery by mutableStateOf("")
     var isSyncing by mutableStateOf(false)
+    var monitorEnabled by mutableStateOf(false)
+    var monitorPrefix by mutableStateOf("")
+    var monitorWords by mutableStateOf(0)
+    var monitorMatchedFiles by mutableStateOf(0)
+    var monitorStatus by mutableStateOf("Monitor off")
+    private var monitorRunning = false
     var isGoogleConnected by mutableStateOf(try { GoogleOAuthManager(getApplication()).isConnected() } catch (_: Exception) { false })
     private var lastTextWordCount = 0
+    private val monitorDayKey: String get() = UsageTracker.periodStartMillis(resetMinutes.value).toString()
     init {
-        viewModelScope.launch { lastTextWordCount = countWords(text.first()) }
+        viewModelScope.launch {
+            lastTextWordCount = countWords(text.first())
+            monitorEnabled = store.monitorEnabled.first()
+            monitorPrefix = store.monitorPrefix.first()
+            val key = monitorDayKey
+            monitorWords = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
+        }
+        viewModelScope.launch {
+            while (true) {
+                if (monitorEnabled && isGoogleConnected && !monitorRunning) monitorNow()
+                delay(30_000)
+            }
+        }
         viewModelScope.launch {
             val dayKey = UsageTracker.periodStartMillis(resetMinutes.value).toString()
             val todayKey = store.todayKey.first()
@@ -309,6 +328,78 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun setResetMinutes(value: Int) = viewModelScope.launch { store.setResetMinutes(value); val key = UsageTracker.periodStartMillis(value).toString(); if (store.todayKey.first() != key) store.setTodayWords(0, key); refreshUsage() }
     fun setLogic(value: String) = viewModelScope.launch { store.setLogic(value); applyBlocking() }
     fun setSprintMinutes(value: Int) = viewModelScope.launch { store.setSprintMinutes(value) }
+    fun setMonitorPrefix(value: String) {
+        monitorPrefix = value.trim()
+        viewModelScope.launch { store.setMonitorPrefix(monitorPrefix) }
+    }
+    fun setMonitorEnabled(value: Boolean) {
+        monitorEnabled = value
+        viewModelScope.launch {
+            store.setMonitorEnabled(value)
+            if (value) monitorNow(resetBaseline = true) else monitorStatus = "Monitor paused"
+        }
+    }
+    fun monitorNow(resetBaseline: Boolean = false) {
+        if (monitorRunning || !isGoogleConnected) return
+        monitorRunning = true
+        monitorStatus = "Checking matching Google Docs…"
+        val prefix = monitorPrefix.trim()
+        viewModelScope.launch {
+            try {
+                val counts = JSONObject(store.monitorCounts.first())
+                val manager = GoogleOAuthManager(getApplication())
+                manager.withFreshToken(onToken = { token ->
+                    if (token == null) {
+                        monitorRunning = false
+                        monitorStatus = "Google authorization required"
+                        return@withFreshToken
+                    }
+                    viewModelScope.launch(Dispatchers.IO) {
+                        try {
+                            val files = docsRepo.findFiles(token, "")
+                                .filter { prefix.isBlank() || it.name.startsWith(prefix, ignoreCase = true) }
+                            var added = 0
+                            for (file in files) {
+                                val wordsNow = countWords(docsRepo.getDocumentText(token, file.id))
+                                val previous = counts.optInt(file.id, -1)
+                                if (previous < 0 || resetBaseline) {
+                                    counts.put(file.id, wordsNow)
+                                } else if (wordsNow > previous) {
+                                    added += wordsNow - previous
+                                    counts.put(file.id, wordsNow)
+                                } else {
+                                    counts.put(file.id, wordsNow)
+                                }
+                            }
+                            val key = monitorDayKey
+                            withContext(Dispatchers.Main) {
+                                if (store.monitorDayKey.first() != key) monitorWords = 0
+                                monitorWords += added
+                                viewModelScope.launch {
+                                    store.setMonitorWords(monitorWords, key)
+                                    store.setMonitorCounts(counts.toString())
+                                }
+                                monitorMatchedFiles = files.size
+                                monitorStatus = "Watching " + files.size + " matching Doc" + if (files.size == 1) "" else "s"
+                                monitorRunning = false
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
+                                monitorRunning = false
+                            }
+                        }
+                    }
+                }, onError = {
+                    monitorStatus = it
+                    monitorRunning = false
+                })
+            } catch (e: Exception) {
+                monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
+                monitorRunning = false
+            }
+        }
+    }
     fun startSprint() = viewModelScope.launch { store.setSprintStartedAt(System.currentTimeMillis()) }
     fun stopSprint() = viewModelScope.launch { store.setSprintStartedAt(0L) }
     fun setDocumentName(value: String) = viewModelScope.launch { store.setDocumentName(value) }
