@@ -340,7 +340,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             store.setMonitorEnabled(value)
             if (value) {
                 GoogleDocsMonitorScheduler.start(getApplication())
-                monitorNow(resetBaseline = true)
+                monitorNow()
             } else {
                 GoogleDocsMonitorScheduler.stop(getApplication())
                 monitorStatus = "Monitor paused"
