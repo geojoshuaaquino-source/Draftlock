@@ -333,7 +333,7 @@ private fun MockHome(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("GOOGLE DOC MONITOR", color = Color(0xFF6E86AA), fontSize = 9.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
-                        Text(if (vm.monitorEnabledState) "$" + "{vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        Text(if (vm.monitorEnabledState) "${vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                         Text(if (vm.monitorPrefixState.isBlank()) "All Google Docs" else "Files starting with \"" + vm.monitorPrefixState + "\"", color = Color(0xFF7F93B3), fontSize = 10.sp)
                     }
                     Switch(checked = vm.monitorEnabledState, onCheckedChange = vm::updateMonitorEnabled)
@@ -643,7 +643,7 @@ private fun MockEditor(
     val hasCloudDoc = docId.isNotBlank()
     LaunchedEffect(revision) { focusRequester.requestFocus() }
 
-    Column(Modifier.fillMaxSize().background(Color(0xFF020817)).imePadding()) {
+    Column(Modifier.fillMaxSize().background(Color(0xFF020817)).windowInsetsPadding(WindowInsets.statusBars).imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             SmallGlassButton("‹ Library", onLibrary)
             Spacer(Modifier.width(14.dp))
@@ -654,9 +654,23 @@ private fun MockEditor(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(wordCount(draft).toString() + " words", color = Color(0xFF9DB6E2), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                if (vm.sprintRunning) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(String.format("%02d:%02d", vm.sprintRemainingSeconds / 60, vm.sprintRemainingSeconds % 60), color = Color(0xFF71DDFF), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (vm.sprintRunning) Color(0x1C43B9FF) else Color(0x12172A45))
+                        .border(1.dp, if (vm.sprintRunning) Color(0x4A71DDFF) else Color(0x25466C9B), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        if (vm.sprintRunning)
+                            String.format("%02d:%02d", vm.sprintRemainingSeconds / 60, vm.sprintRemainingSeconds % 60)
+                        else
+                            "NO SPRINT",
+                        color = if (vm.sprintRunning) Color(0xFF71DDFF) else Color(0xFF7187A9),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -919,21 +933,48 @@ private fun PressableSurface(
 }
 
 @Composable
-private fun GradientButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) { Box(modifier.height(46.dp).clip(RoundedCornerShape(15.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4E8FFF), Color(0xFF613CFF)))).clickable { onClick() }, contentAlignment = Alignment.Center) { Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp) } }
+private fun GradientButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = tween(80),
+        label = "gradientButtonScale"
+    )
+    Box(
+        modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .height(46.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF4E8FFF), Color(0xFF613CFF))))
+            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+    }
+}
 
 @Composable
 private fun SmallGlassButton(text: String, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.95f else 1f,
+        animationSpec = tween(80),
+        label = "smallButtonScale"
+    )
     Box(
         Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(13.dp))
-            .background(Color(0x152D4D78))
-            .border(1.dp, Color(0x29466C9B), RoundedCornerShape(13.dp))
-            .clickable { onClick() }
+            .background(if (pressed) Color(0x264B78B8) else Color(0x152D4D78))
+            .border(1.dp, if (pressed) Color(0x557CB7F0) else Color(0x29466C9B), RoundedCornerShape(13.dp))
+            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color(0xFFBFD4F2), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+        Text(text, color = if (pressed) Color.White else Color(0xFFBFD4F2), fontWeight = FontWeight.Bold, fontSize = 10.sp)
     }
 }
 
