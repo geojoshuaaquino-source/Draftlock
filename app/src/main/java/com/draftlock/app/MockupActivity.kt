@@ -965,7 +965,20 @@ private fun PressableSurface(
 private fun GradientButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) { Box(modifier.height(46.dp).clip(RoundedCornerShape(15.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4E8FFF), Color(0xFF613CFF)))).clickable { onClick() }, contentAlignment = Alignment.Center) { Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp) } }
 
 @Composable
-private fun SmallGlassButton(text: String, onClick: () -> Unit) { Box(Modifier.clip(RoundedCornerShape(13.dp)).background(Color(0x152D4D78)).border(1.dp, Color(0x29466C9B), RoundedCornerShape(13.dp)).clickable { onClick() }.padding(horizontal = 12.dp, vertical = 9.dp), contentAlignment = Alignment.Center) { Text(text, color = Color(0xFFBFD4F2), fontWeight = FontWeight.Bold, fontSize = 9.sp) } }
+private fun SmallGlassButton(text: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .heightIn(min = 40.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(Color(0x152D4D78))
+            .border(1.dp, Color(0x29466C9B), RoundedCornerShape(13.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = Color(0xFFBFD4F2), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+    }
+}
 
 @Composable
 private fun EmptyCard(title: String, body: String) { GlassSurface { Text(title, color = Color.White, fontWeight = FontWeight.Bold); Spacer(Modifier.height(5.dp)); Text(body, color = Color(0xFF7187A9), fontSize = 10.sp) } }
