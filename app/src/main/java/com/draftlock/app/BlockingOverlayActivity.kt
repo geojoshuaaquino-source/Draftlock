@@ -31,7 +31,7 @@ class BlockingOverlayActivity : ComponentActivity() {
         setContent {
             DraftLockTheme {
                 BlockingScreen(blockedLabel, blockedPkg) {
-                    startActivity(Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) })
+                    startActivity(Intent(this, MockupActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) })
                     finish()
                 }
             }
