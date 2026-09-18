@@ -226,6 +226,10 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     val googleDocumentId = store.googleDocumentId.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val googleAutoSave = store.googleAutoSave.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     val overrideUntil = store.overrideUntil.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+    val sprintMinutes = store.sprintMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 25)
+    val sprintStartedAt = store.sprintStartedAt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+    var sprintRemainingSeconds by mutableStateOf(0L)
+    var sprintRunning by mutableStateOf(false)
     var selectedLocalDocId by mutableStateOf<Long?>(null)
 
     var usageMinutes by mutableStateOf<Map<String, Int>>(emptyMap())
@@ -242,10 +246,20 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         viewModelScope.launch { lastTextWordCount = countWords(text.first()) }
         viewModelScope.launch {
             val dayKey = UsageTracker.periodStartMillis(resetMinutes.value).toString()
-            val todayKey = store.todayKey.stateIn(viewModelScope, SharingStarted.Eagerly, "").value
+            val todayKey = store.todayKey.first()
             if (todayKey != dayKey) store.setTodayWords(0, dayKey)
         }
         refreshUsage()
+        viewModelScope.launch {
+            while (true) {
+                val started = sprintStartedAt.value
+                val remaining = if (started > 0L) ((started + sprintMinutes.value * 60_000L - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L) else 0L
+                sprintRemainingSeconds = remaining
+                sprintRunning = remaining > 0L
+                if (started > 0L && remaining == 0L) store.setSprintStartedAt(0L)
+                delay(1000)
+            }
+        }
     }
 
     fun refreshUsage() {
@@ -274,8 +288,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     }
 
     fun setQuota(value: Int) = viewModelScope.launch { store.setQuota(value); applyBlocking() }
-    fun setResetMinutes(value: Int) = viewModelScope.launch { store.setResetMinutes(value); store.setTodayWords(0, UsageTracker.periodStartMillis(value).toString()); refreshUsage() }
+    fun setResetMinutes(value: Int) = viewModelScope.launch { store.setResetMinutes(value); val key = UsageTracker.periodStartMillis(value).toString(); if (store.todayKey.first() != key) store.setTodayWords(0, key); refreshUsage() }
     fun setLogic(value: String) = viewModelScope.launch { store.setLogic(value); applyBlocking() }
+    fun setSprintMinutes(value: Int) = viewModelScope.launch { store.setSprintMinutes(value) }
+    fun startSprint() = viewModelScope.launch { store.setSprintStartedAt(System.currentTimeMillis()) }
+    fun stopSprint() = viewModelScope.launch { store.setSprintStartedAt(0L) }
     fun setDocumentName(value: String) = viewModelScope.launch { store.setDocumentName(value) }
     fun setGoogleFolder(value: String) = viewModelScope.launch { store.setGoogleFolderId(value) }
     fun setGoogleDocument(value: String) = viewModelScope.launch { store.setGoogleDocumentId(value) }
