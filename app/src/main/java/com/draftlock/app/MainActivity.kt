@@ -280,6 +280,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                 sprintRemainingSeconds = remaining
                 sprintRunning = remaining > 0L
                 if (started > 0L && remaining == 0L) store.setSprintStartedAt(0L)
+                DraftLockWidget.updateAll(getApplication())
                 delay(1000)
             }
         }
@@ -390,11 +391,13 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                                 monitorMatchedFiles = files.size
                                 monitorStatus = "Watching " + files.size + " matching Doc" + if (files.size == 1) "" else "s"
                                 monitorRunning = false
+                                DraftLockWidget.updateAll(getApplication())
                             }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
                                 monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
                                 monitorRunning = false
+                                DraftLockWidget.updateAll(getApplication())
                             }
                         }
                     }
@@ -405,11 +408,18 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             } catch (e: Exception) {
                 monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
                 monitorRunning = false
+                DraftLockWidget.updateAll(getApplication())
             }
         }
     }
-    fun startSprint() = viewModelScope.launch { store.setSprintStartedAt(System.currentTimeMillis()) }
-    fun stopSprint() = viewModelScope.launch { store.setSprintStartedAt(0L) }
+    fun startSprint() = viewModelScope.launch {
+        store.setSprintStartedAt(System.currentTimeMillis())
+        DraftLockWidget.updateAll(getApplication())
+    }
+    fun stopSprint() = viewModelScope.launch {
+        store.setSprintStartedAt(0L)
+        DraftLockWidget.updateAll(getApplication())
+    }
     fun setDocumentName(value: String) = viewModelScope.launch { store.setDocumentName(value) }
     fun setGoogleFolder(value: String) = viewModelScope.launch { store.setGoogleFolderId(value) }
     fun setGoogleDocument(value: String) = viewModelScope.launch { store.setGoogleDocumentId(value) }
