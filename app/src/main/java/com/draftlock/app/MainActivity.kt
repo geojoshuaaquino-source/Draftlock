@@ -330,11 +330,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun setResetMinutes(value: Int) = viewModelScope.launch { store.setResetMinutes(value); val key = UsageTracker.periodStartMillis(value).toString(); if (store.todayKey.first() != key) store.setTodayWords(0, key); refreshUsage() }
     fun setLogic(value: String) = viewModelScope.launch { store.setLogic(value); applyBlocking() }
     fun setSprintMinutes(value: Int) = viewModelScope.launch { store.setSprintMinutes(value) }
-    fun setMonitorPrefix(value: String) {
+    fun updateMonitorPrefix(value: String) {
         monitorPrefix = value.trim()
         viewModelScope.launch { store.setMonitorPrefix(monitorPrefix) }
     }
-    fun setMonitorEnabled(value: Boolean) {
+    fun updateMonitorEnabled(value: Boolean) {
         monitorEnabled = value
         viewModelScope.launch {
             store.setMonitorEnabled(value)
