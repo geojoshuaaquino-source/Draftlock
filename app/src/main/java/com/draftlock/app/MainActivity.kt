@@ -336,6 +336,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         val id = db.dao().upsertLocalDoc(doc)
         selectedLocalDocId = id
         documentRevision += 1
+        store.setGoogleDocumentId("")
         store.setDocumentName(doc.title)
         store.setDocumentText("")
         lastTextWordCount = 0
@@ -346,6 +347,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun openLocalDoc(doc: LocalDocument, onReady: () -> Unit = {}) = viewModelScope.launch {
         selectedLocalDocId = doc.id
         documentRevision += 1
+        store.setGoogleDocumentId("")
         store.setDocumentName(doc.title)
         store.setDocumentText(doc.content)
         lastTextWordCount = countWords(doc.content)
@@ -437,11 +439,35 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     val id = docsRepo.createDocument(token, name, googleFolderId.value.ifBlank { null })
-                    withContext(Dispatchers.Main) { saveGoogleStatus("Created: $name"); setGoogleDocument(id); fetchDriveFiles(); onCreated(id); isSyncing = false }
-                } catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Create failed: ${e.message}"); isSyncing = false } }
+                    withContext(Dispatchers.Main) {
+                        saveGoogleStatus("Created: $name")
+                        setGoogleDocument(id)
+                        fetchDriveFiles()
+                        onCreated(id)
+                        isSyncing = false
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        saveGoogleStatus("Create failed: " + (e.message ?: "unknown error"))
+                        isSyncing = false
+                    }
+                }
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
     }
+    fun prepareNewGoogleDocSession(name: String, onReady: () -> Unit = {}) {
+        createGoogleDoc(name) {
+            selectedLocalDocId = null
+            documentRevision += 1
+            viewModelScope.launch {
+                store.setDocumentName(name)
+                store.setDocumentText("")
+                lastTextWordCount = 0
+                onReady()
+            }
+        }
+    }
+
     fun syncTextToDoc(docId: String = googleDocumentId.value) {
         val doc = docId.ifBlank { saveGoogleStatus("Pick a doc first — use picker below"); return }
         val manager = GoogleOAuthManager(getApplication())
