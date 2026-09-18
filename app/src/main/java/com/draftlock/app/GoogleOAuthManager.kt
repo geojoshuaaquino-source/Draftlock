@@ -28,7 +28,7 @@ class GoogleOAuthManager(private val context: Context) {
 
     private val redirectUri: Uri
         get() = Uri.parse(
-            "com.googleusercontent.apps.\${effectiveClientId.substringBefore(".apps.googleusercontent.com")}:/oauth2redirect"
+            "com.googleusercontent.apps.${effectiveClientId.substringBefore(".apps.googleusercontent.com")}:/oauth2redirect"
         )
 
     // drive.file is sufficient for the Docs API operations DraftLock performs
@@ -131,7 +131,7 @@ class GoogleOAuthManager(private val context: Context) {
                 store.save(authState.jsonSerializeString())
                 onComplete(true, "Google account connected")
             } catch (e: Exception) {
-                onComplete(false, "Could not save Google login: \${e.message ?: "storage error"}")
+                onComplete(false, "Could not save Google login: ${e.message ?: "storage error"}")
             }
         }
     }
@@ -159,7 +159,7 @@ class GoogleOAuthManager(private val context: Context) {
                     store.save(state.jsonSerializeString())
                     onToken(accessToken)
                 } catch (e: Exception) {
-                    onError("Could not save refreshed Google login: \${e.message ?: "storage error"}")
+                    onError("Could not save refreshed Google login: ${e.message ?: "storage error"}")
                 }
             }
         }
