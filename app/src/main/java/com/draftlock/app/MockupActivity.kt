@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.provider.Settings
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
@@ -128,12 +130,17 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                 bottomBar = { if (page != MockPage.EDITOR) MockBottomBar(page) { page = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
-                    when (page) {
-                        MockPage.HOME -> MockHome(vm, words, quota, text, name, lockedApps.size, onOpen = { page = MockPage.EDITOR }, onLibrary = { page = MockPage.LIBRARY }, onFocus = { page = MockPage.FOCUS }) { overrideDialog = true }
-                        MockPage.LIBRARY -> MockLibrary(vm, localDocs) { page = MockPage.EDITOR }
-                        MockPage.FOCUS -> MockFocus(vm, lockedApps, requirements) { page = MockPage.SETTINGS }
-                        MockPage.EDITOR -> MockEditor(vm, text, name) { page = MockPage.LIBRARY }
-                        MockPage.SETTINGS -> MockSettings(vm) { page = MockPage.FOCUS }
+                    AnimatedContent(targetState = page, transitionSpec = {
+                        (slideInHorizontally(tween(220, easing = EaseOutCubic)) { it / 8 } + fadeIn(tween(180)))
+                            .togetherWith(slideOutHorizontally(tween(180, easing = EaseInCubic)) { -it / 8 } + fadeOut(tween(120)))
+                    }, label = "mockPageTransition") { target ->
+                        when (target) {
+                            MockPage.HOME -> MockHome(vm, words, quota, text, name, lockedApps.size, onOpen = { page = MockPage.EDITOR }, onLibrary = { page = MockPage.LIBRARY }, onFocus = { page = MockPage.FOCUS }) { overrideDialog = true }
+                            MockPage.LIBRARY -> MockLibrary(vm, localDocs) { page = MockPage.EDITOR }
+                            MockPage.FOCUS -> MockFocus(vm, lockedApps, requirements) { page = MockPage.SETTINGS }
+                            MockPage.EDITOR -> MockEditor(vm, text, name) { page = MockPage.LIBRARY }
+                            MockPage.SETTINGS -> MockSettings(vm) { page = MockPage.FOCUS }
+                        }
                     }
                 }
             }
@@ -186,7 +193,9 @@ private fun MockBottomBar(page: MockPage, onPage: (MockPage) -> Unit) {
     Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).background(Color(0xE8061122)).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         MockNav("Home", R.drawable.ic_home, page == MockPage.HOME) { onPage(MockPage.HOME) }
         MockNav("Library", R.drawable.ic_docs, page == MockPage.LIBRARY) { onPage(MockPage.LIBRARY) }
-        Box(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(17.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4D8DFF), Color(0xFF633BFF)))).clickable { onPage(MockPage.EDITOR) }, contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_write), null, tint = Color.White, modifier = Modifier.size(22.dp)) }
+        PressableSurface(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(17.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4D8DFF), Color(0xFF633BFF)))), { onPage(MockPage.EDITOR) }) {
+            Icon(painterResource(R.drawable.ic_write), null, tint = Color.White, modifier = Modifier.size(22.dp))
+        }
         MockNav("Focus", R.drawable.ic_lock_closed, page == MockPage.FOCUS) { onPage(MockPage.FOCUS) }
         MockNav("Settings", R.drawable.ic_analytics, page == MockPage.SETTINGS) { onPage(MockPage.SETTINGS) }
     }
@@ -194,9 +203,11 @@ private fun MockBottomBar(page: MockPage, onPage: (MockPage) -> Unit) {
 
 @Composable
 private fun RowScope.MockNav(label: String, icon: Int, selected: Boolean, onClick: () -> Unit) {
-    Column(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(15.dp)).clickable { onClick() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(painterResource(icon), null, tint = if (selected) Color(0xFF6C9FFF) else Color(0xFF637795), modifier = Modifier.size(19.dp))
-        Text(label, color = if (selected) Color.White else Color(0xFF637795), fontSize = 8.sp)
+    PressableSurface(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(15.dp)), onClick) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Icon(painterResource(icon), null, tint = if (selected) Color(0xFF6C9FFF) else Color(0xFF637795), modifier = Modifier.size(19.dp))
+            Text(label, color = if (selected) Color.White else Color(0xFF637795), fontSize = 8.sp)
+        }
     }
 }
 
@@ -431,6 +442,23 @@ private fun SecondaryAuthButton(text: String, icon: Int, onClick: () -> Unit) { 
 
 @Composable
 private fun OverrideDialog(vm: DraftLockViewModel, close: () -> Unit) { AlertDialog(onDismissRequest = close, containerColor = Color(0xFF0B1730), title = { Text("Emergency Override", color = Color.White) }, text = { Text("Unlock blocked apps for 15 minutes?", color = Color(0xFFB2C3DF)) }, confirmButton = { TextButton(onClick = { vm.activateEmergencyOverride(); close() }) { Text("Unlock", color = Color(0xFF73DFFF)) } }, dismissButton = { TextButton(onClick = close) { Text("Cancel", color = Color(0xFF8396B5)) } }) }
+
+@Composable
+private fun PressableSurface(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    content: @Composable BoxScope.() -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(90), label = "pressScale")
+    Box(
+        modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick),
+        contentAlignment = Alignment.Center,
+        content = content
+    )
+}
 
 @Composable
 private fun GradientButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) { Box(modifier.height(46.dp).clip(RoundedCornerShape(15.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4E8FFF), Color(0xFF613CFF)))).clickable { onClick() }, contentAlignment = Alignment.Center) { Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp) } }
