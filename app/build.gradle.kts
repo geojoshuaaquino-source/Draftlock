@@ -49,17 +49,13 @@ android {
     }
 }
 
-// CI helper — print runner debug SHA1 so GitHub built gives you SHA1 without touching workflow file
-// (workflow's "Show debug SHA fingerprints" step does `keytool | grep` and fails if keystore missing;
-//  this hook ensures keystore exists and prints SHA during assembleDebug, which IS allowed to push)
-// Wrapped in afterEvaluate so assembleDebug exists (AGP creates tasks after android block)
 afterEvaluate {
     tasks.named("assembleDebug") {
         doLast {
             try {
                 val home = System.getProperty("user.home") ?: System.getenv("HOME") ?: "/home/runner"
-                val ks = File("$home/.android/debug.keystore")
-                println(">>> DraftLock: ensuring debug keystore at ${ks.absolutePath} (exists=${ks.exists()})")
+                val ks = File("$" + "{home}/.android/debug.keystore")
+                println(">>> DraftLock: ensuring debug keystore at $" + "{ks.absolutePath} (exists=$" + "{ks.exists()})")
                 if (!ks.exists()) {
                     ks.parentFile?.mkdirs()
                     val gen = providers.exec {
@@ -73,7 +69,7 @@ afterEvaluate {
                         isIgnoreExitValue = true
                     }
                     gen.result.get()
-                    println(">>> DraftLock: keytool genkey exit=${gen.result.get().exitValue} existsNow=${ks.exists()}")
+                    println(">>> DraftLock: keytool genkey exit=$" + "{gen.result.get().exitValue} existsNow=$" + "{ks.exists()}")
                 }
                 try {
                     providers.exec {
@@ -85,9 +81,9 @@ afterEvaluate {
                         )
                         isIgnoreExitValue = true
                     }.result.get()
-                    println(">>> DraftLock: use the SHA1 above with Package com.draftlock.app to create Android OAuth client (console.cloud.google.com → Credentials → Create OAuth client → Android)")
-                } catch (e: Exception) { println(">>> DraftLock: keytool list exec failed: ${e.message}") }
-            } catch (e: Exception) { println(">>> DraftLock SHA helper failed: ${e.message}") }
+                    println(">>> DraftLock: use the SHA1 above with Package com.draftlock.app to create Android OAuth client")
+                } catch (e: Exception) { println(">>> DraftLock: keytool list exec failed: $" + "{e.message}") }
+            } catch (e: Exception) { println(">>> DraftLock SHA helper failed: $" + "{e.message}") }
         }
     }
 }
@@ -99,9 +95,6 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    // Free asset libraries — MelonUI is web/React (ItzAmyy/MelonUI, react-melon/melon) with no Android Maven artifact,
-    // so its tokens are vendored into Theme.kt (converted for Compose) rather than added as a binary dep.
-    // Compatible free Compose assets (purposeful: icons + images + animation):
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.airbnb.android:lottie-compose:6.1.0")
@@ -109,7 +102,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("androidx.navigation:navigation-compose:2.9.3")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
-    implementation("androidx.work:work-runtime-ktx:2.10.2")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("androidx.room:room-runtime:2.7.2")
     implementation("androidx.room:room-ktx:2.7.2")
     kapt("androidx.room:room-compiler:2.7.2")
