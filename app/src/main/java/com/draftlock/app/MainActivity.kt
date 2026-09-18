@@ -353,7 +353,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
     }
 
-    fun openPickedGoogleDoc(documentId: String) {\n        if (documentId.isBlank()) {\n            isSyncing = false\n            saveGoogleStatus("Google Picker returned no document")\n            return\n        }\n        val manager = GoogleOAuthManager(getApplication())\n        manager.withFreshToken(onToken = { token ->\n            if (token == null) { saveGoogleStatus("Auth error"); return@withFreshToken }\n            viewModelScope.launch(Dispatchers.IO) {\n                val actualName = try { docsRepo.getFileName(token, documentId) } catch (_: Exception) { "Google Doc" }\n                withContext(Dispatchers.Main) { loadDocContent(documentId, actualName) }\n            }\n        }, onError = { saveGoogleStatus(it) })\n    }\n    fun startGoogleAuth(context: Context) {
+    fun openPickedGoogleDoc(documentId: String) {
+        if (documentId.isBlank()) {\n            isSyncing = false\n            saveGoogleStatus("Google Picker returned no document")\n            return\n        }\n        val manager = GoogleOAuthManager(getApplication())\n        manager.withFreshToken(onToken = { token ->\n            if (token == null) { saveGoogleStatus("Auth error"); return@withFreshToken }\n            viewModelScope.launch(Dispatchers.IO) {\n                val actualName = try { docsRepo.getFileName(token, documentId) } catch (_: Exception) { "Google Doc" }\n                withContext(Dispatchers.Main) { loadDocContent(documentId, actualName) }\n            }\n        }, onError = { saveGoogleStatus(it) })\n    }\n    fun startGoogleAuth(context: Context) {
         val mgr = GoogleOAuthManager(context)
         if (!mgr.isConfigured) { saveGoogleStatus("No Client ID — add GOOGLE_CLIENT_ID in local.properties or Settings → Gmail"); return }
         saveGoogleStatus("Opening Google sign-in…")
