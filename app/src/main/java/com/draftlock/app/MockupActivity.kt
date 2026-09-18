@@ -45,6 +45,30 @@ private enum class MockPage { HOME, LIBRARY, FOCUS, EDITOR, SETTINGS }
 private data class InstalledApp(val packageName: String, val label: String, val icon: Bitmap?)
 
 class MockupActivity : ComponentActivity() {
+    private fun handleOAuthActivityResult(data: Intent?) {
+        if (data == null) return
+        GoogleOAuthManager(this).handleResult(data) { ok, msg ->
+            runOnUiThread {
+                val vm: DraftLockViewModel = androidx.lifecycle.ViewModelProvider(this)[DraftLockViewModel::class.java]
+                if (ok) {
+                    vm.checkGoogleConnection()
+                    vm.saveGoogleStatus("Google account connected")
+                    vm.fetchDriveFiles()
+                } else {
+                    vm.saveGoogleStatus("Google sign-in failed: $msg")
+                }
+            }
+        }
+    }
+
+    @Deprecated("Use Activity Result APIs when refactoring the legacy flow")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == GoogleOAuthManager.AUTH_REQUEST_CODE) {
+            handleOAuthActivityResult(data)
+        }
+    }
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { val vm: DraftLockViewModel = viewModel(); DraftLockMockupApp(vm) }
