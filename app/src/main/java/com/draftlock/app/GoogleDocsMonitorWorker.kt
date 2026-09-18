@@ -60,6 +60,7 @@ class GoogleDocsMonitorWorker(
 
             store.setMonitorWords(currentWords + added, dayKey)
             store.setMonitorCounts(counts.toString())
+            DraftLockWidget.updateAll(applicationContext)
 
             Result.success()
         } catch (_: Exception) {
