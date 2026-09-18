@@ -99,34 +99,68 @@ class GoogleDocsRepository {
         return sb.toString().trimEnd('\n')
     }
 
-    fun findFiles(accessToken: String, namePrefix: String): List<RemoteFile> {
-        val escapedName = namePrefix.replace("'", "\\'")
-        val query = "trashed = false and mimeType = '$DOC_MIME' and name contains '$escapedName'"
-        val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
-        val fields = URLEncoder.encode("files(id,name,modifiedTime,size,parents)", StandardCharsets.UTF_8.toString())
-        val json = JSONObject(request(
-            accessToken = accessToken,
-            method = "GET",
-            url = "$DRIVE_BASE/files?q=$encodedQuery&spaces=drive&fields=$fields&pageSize=100"
-        ))
-        val files = json.optJSONArray("files") ?: JSONArray()
-        return buildList {
+    fun findFiles(accessToken: String, nameQuery: String): List<RemoteFile> {
+        // Fetch the complete Google Docs index first, then filter locally.
+        // Drive's "name contains" query is prefix-oriented, so using it server-side
+        // would miss titles where the search term appears later in the name.
+        val baseQuery = "trashed = false and mimeType = '$DOC_MIME'"
+        val encodedQuery = URLEncoder.encode(baseQuery, StandardCharsets.UTF_8.toString())
+        val fields = URLEncoder.encode(
+            "nextPageToken,files(id,name,modifiedTime,size,parents)",
+            StandardCharsets.UTF_8.toString()
+        )
+
+        val results = mutableListOf<RemoteFile>()
+        var pageToken = ""
+
+        do {
+            val encodedPageToken = if (pageToken.isBlank()) {
+                ""
+            } else {
+                "&pageToken=" + URLEncoder.encode(pageToken, StandardCharsets.UTF_8.toString())
+            }
+
+            val url = "$DRIVE_BASE/files" +
+                "?q=$encodedQuery" +
+                "&spaces=drive" +
+                "&corpora=allDrives" +
+                "&includeItemsFromAllDrives=true" +
+                "&supportsAllDrives=true" +
+                "&orderBy=modifiedTime%20desc" +
+                "&pageSize=1000" +
+                "&fields=$fields" +
+                encodedPageToken
+
+            val json = JSONObject(request(
+                accessToken = accessToken,
+                method = "GET",
+                url = url
+            ))
+
+            val files = json.optJSONArray("files") ?: JSONArray()
             for (i in 0 until files.length()) {
                 val item = files.optJSONObject(i) ?: continue
                 val name = item.optString("name")
-                if (namePrefix.isBlank() || name.contains(namePrefix, ignoreCase = true)) {
-                    val parents = item.optJSONArray("parents") ?: JSONArray()
-                    add(RemoteFile(
-                        id = item.optString("id"),
-                        name = name,
-                        modifiedTime = item.optString("modifiedTime"),
-                        size = item.optLong("size", 0L),
-                        parents = buildList {
-                            for (p in 0 until parents.length()) add(parents.optString(p))
-                        }
-                    ))
-                }
+                val parents = item.optJSONArray("parents") ?: JSONArray()
+                results += RemoteFile(
+                    id = item.optString("id"),
+                    name = name,
+                    modifiedTime = item.optString("modifiedTime"),
+                    size = item.optLong("size", 0L),
+                    parents = buildList {
+                        for (p in 0 until parents.length()) add(parents.optString(p))
+                    }
+                )
             }
+
+            pageToken = json.optString("nextPageToken", "")
+        } while (pageToken.isNotBlank())
+
+        val query = nameQuery.trim()
+        return if (query.isBlank()) {
+            results
+        } else {
+            results.filter { it.name.contains(query, ignoreCase = true) }
         }
     }
 
