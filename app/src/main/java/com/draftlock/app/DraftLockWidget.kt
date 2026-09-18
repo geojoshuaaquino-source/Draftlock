@@ -29,13 +29,12 @@ class DraftLockWidget : AppWidgetProvider() {
             val appContext = context.applicationContext
             CoroutineScope(Dispatchers.IO).launch {
                 val store = SettingsStore(appContext)
-                val started = store.sprintStartedAt.first()
-                val minutes = store.sprintMinutes.first()
+                val endAt = store.sprintEndAt.first()
                 val monitorWords = store.monitorWords.first()
                 val monitorEnabled = store.monitorEnabled.first()
 
-                val remaining = if (started > 0L) {
-                    max(0L, ((started + minutes * 60_000L - System.currentTimeMillis()) / 1000L))
+                val remaining = if (endAt > 0L) {
+                    max(0L, ((endAt - System.currentTimeMillis()) / 1000L))
                 } else 0L
 
                 val timer = if (remaining > 0L) {
