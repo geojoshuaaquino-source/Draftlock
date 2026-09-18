@@ -64,9 +64,15 @@ class MockupActivity : ComponentActivity() {
     @Deprecated("Use Activity Result APIs when refactoring the legacy flow")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == GoogleOAuthManager.AUTH_REQUEST_CODE) {
-            handleOAuthActivityResult(data)
+        if (requestCode != GoogleOAuthManager.AUTH_REQUEST_CODE) return
+
+        if (resultCode != RESULT_OK || data == null) {
+            val vm: DraftLockViewModel = androidx.lifecycle.ViewModelProvider(this)[DraftLockViewModel::class.java]
+            vm.saveGoogleStatus("Google sign-in cancelled")
+            return
         }
+
+        handleOAuthActivityResult(data)
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
