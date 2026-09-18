@@ -178,6 +178,17 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                     }
                 )
             }
+            if (showSprintPicker) {
+                SprintPickerDialog(
+                    vm = vm,
+                    localDocs = localDocs,
+                    onDismiss = { showSprintPicker = false },
+                    onStarted = {
+                        showSprintPicker = false
+                        page = MockPage.EDITOR
+                    }
+                )
+            }
         }
     }
 }
