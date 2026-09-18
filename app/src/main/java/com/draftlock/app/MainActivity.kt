@@ -418,13 +418,13 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         val manager = GoogleOAuthManager(getApplication())
         if (!manager.isConfigured) { saveGoogleStatus("Google not configured — local vault active"); return }
         if (manager.loadState() == null) { saveGoogleStatus("Connect Google first (or use local)"); return }
-        isSyncing = true; saveGoogleStatus("Searching Drive…")
+        isSyncing = true; saveGoogleStatus("Syncing all Google Docs…")
         manager.withFreshToken(onToken = { token ->
             if (token == null) { isSyncing = false; saveGoogleStatus("Token failed"); return@withFreshToken }
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     val files = docsRepo.findFiles(token, query)
-                    withContext(Dispatchers.Main) { driveFiles = files; saveGoogleStatus("Found ${files.size} docs"); isSyncing = false }
+                    withContext(Dispatchers.Main) { driveFiles = files; saveGoogleStatus("Synced ${files.size} Google Docs"); isSyncing = false }
                 } catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Drive error: ${e.message}"); isSyncing = false } }
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
