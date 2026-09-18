@@ -1,5 +1,6 @@
 package com.draftlock.app
 
+import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -15,6 +16,9 @@ import net.openid.appauth.ResponseTypeValues
 import net.openid.appauth.TokenResponse
 
 class GoogleOAuthManager(private val context: Context) {
+    companion object {
+        const val AUTH_REQUEST_CODE = 7001
+    }
     private val authService = AuthorizationService(context)
     private val store = SecureAuthStore(context)
 
@@ -68,25 +72,30 @@ class GoogleOAuthManager(private val context: Context) {
                 .setScope("openid email profile $driveScope $docsScope")
                 .build()
 
-            // Use a dedicated completion activity instead of MainActivity. This
-            // avoids Compose/lifecycle timing and task-stack ambiguity when AppAuth
-            // returns from Chrome/Custom Tabs.
-            val completionIntent = Intent(context, OAuthCompletionActivity::class.java)
-            val completionPendingIntent = PendingIntent.getActivity(
-                context,
-                70,
-                completionIntent,
-                // AppAuth supplies the OAuth response/error as the fill-in Intent
-                // when it fires this PendingIntent. It therefore must be mutable;
-                // FLAG_IMMUTABLE causes OAuthCompletionActivity to receive an empty
-                // Intent, which produces the misleading generic "authorization failed".
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            )
-
             try {
-                authService.performAuthorizationRequest(request, completionPendingIntent)
+                // Prefer AppAuth's documented startActivityForResult flow when the
+                // caller is an Activity. This keeps the OAuth result on the same
+                // Activity that initiated sign-in and avoids the extra
+                // PendingIntent -> completion-activity hop on Android.
+                val activity = context as? Activity
+                if (activity != null) {
+                    activity.startActivityForResult(
+                        authService.getAuthorizationRequestIntent(request),
+                        AUTH_REQUEST_CODE
+                    )
+                } else {
+                    // Non-Activity callers still use AppAuth's PendingIntent flow.
+                    val completionIntent = Intent(context, OAuthCompletionActivity::class.java)
+                    val completionPendingIntent = PendingIntent.getActivity(
+                        context,
+                        70,
+                        completionIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                    )
+                    authService.performAuthorizationRequest(request, completionPendingIntent)
+                }
             } catch (e: Exception) {
-                onError(e.message ?: "Unable to open Google sign-in")
+                onError("Unable to open Google sign-in: " + (e.message ?: e.javaClass.simpleName))
             }
         }
     }
@@ -105,7 +114,7 @@ class GoogleOAuthManager(private val context: Context) {
             if (tokenResponse == null) {
                 onComplete(
                     false,
-                    tokenError?.errorDescription ?: tokenError?.error ?: "Google token exchange failed"
+                    "Google token exchange failed: " + (tokenError?.errorDescription ?: tokenError?.error ?: tokenError?.type ?: "unknown OAuth error")
                 )
                 return@performTokenRequest
             }
