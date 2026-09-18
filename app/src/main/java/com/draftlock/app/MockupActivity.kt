@@ -233,7 +233,7 @@ private fun MockHeader(vm: DraftLockViewModel, words: Int, quota: Int, page: Moc
 
 @Composable
 private fun MockBottomBar(page: MockPage, onPage: (MockPage) -> Unit) {
-    Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).background(Color(0xE8061122)).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).background(Color(0xE8061122)).padding(horizontal = 10.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         MockNav("Home", R.drawable.ic_home, page == MockPage.HOME) { onPage(MockPage.HOME) }
         MockNav("Library", R.drawable.ic_docs, page == MockPage.LIBRARY) { onPage(MockPage.LIBRARY) }
         PressableSurface(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(17.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4D8DFF), Color(0xFF633BFF)))), { onPage(MockPage.EDITOR) }) {
@@ -246,10 +246,10 @@ private fun MockBottomBar(page: MockPage, onPage: (MockPage) -> Unit) {
 
 @Composable
 private fun RowScope.MockNav(label: String, icon: Int, selected: Boolean, onClick: () -> Unit) {
-    PressableSurface(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(15.dp)), onClick) {
+    PressableSurface(Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(15.dp)), onClick) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(painterResource(icon), null, tint = if (selected) Color(0xFF6C9FFF) else Color(0xFF637795), modifier = Modifier.size(19.dp))
-            Text(label, color = if (selected) Color.White else Color(0xFF637795), fontSize = 8.sp)
+            Icon(painterResource(icon), label, tint = if (selected) Color(0xFF6C9FFF) else Color(0xFF637795), modifier = Modifier.size(20.dp))
+            Text(label, color = if (selected) Color.White else Color(0xFF637795), fontSize = 9.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
         }
     }
 }
