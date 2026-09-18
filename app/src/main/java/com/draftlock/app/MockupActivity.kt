@@ -65,10 +65,29 @@ class MockupActivity : ComponentActivity() {
     @Deprecated("Use Activity Result APIs when refactoring the legacy flow")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        val vm: DraftLockViewModel = androidx.lifecycle.ViewModelProvider(this)[DraftLockViewModel::class.java]
+
+        if (requestCode == GoogleOAuthManager.PICKER_REQUEST_CODE) {
+            if (resultCode != RESULT_OK || data == null) {
+                vm.saveGoogleStatus("Google Picker cancelled")
+                return
+            }
+            GoogleOAuthManager(this).handlePickerResult(data) { pickedIds, msg ->
+                runOnUiThread {
+                    if (pickedIds.isNotEmpty()) {
+                        vm.checkGoogleConnection()
+                        vm.openPickedGoogleDoc(pickedIds.first())
+                    } else {
+                        vm.saveGoogleStatus(msg)
+                    }
+                }
+            }
+            return
+        }
+
         if (requestCode != GoogleOAuthManager.AUTH_REQUEST_CODE) return
 
         if (resultCode != RESULT_OK || data == null) {
-            val vm: DraftLockViewModel = androidx.lifecycle.ViewModelProvider(this)[DraftLockViewModel::class.java]
             vm.saveGoogleStatus("Google sign-in cancelled")
             return
         }
@@ -260,7 +279,7 @@ private fun MockLibrary(vm: DraftLockViewModel, localDocs: List<LocalDocument>, 
             }
             if (filtered.isEmpty()) item { EmptyCard("No drafts found", "Create a local draft or connect Google Docs.") }
         } else {
-            item { GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color(0xFF6EDCFF) else Color.White, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(if (vm.isGoogleConnected) "Google connected" else "Google Docs", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.syncStatus, color = Color(0xFF7489AA), fontSize = 9.sp) }; if (vm.isGoogleConnected) SmallGlassButton("Refresh") { vm.fetchDriveFiles(search) } else GradientButton("Connect", Modifier.width(92.dp)) { vm.startGoogleAuth(context) } } } }
+            item { GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color(0xFF6EDCFF) else Color.White, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(if (vm.isGoogleConnected) "Google connected" else "Google Docs", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.syncStatus, color = Color(0xFF7489AA), fontSize = 9.sp) }; if (vm.isGoogleConnected) { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { SmallGlassButton("Pick Doc") { vm.startGooglePicker(context) }; SmallGlassButton("Refresh") { vm.fetchDriveFiles(search) } } } else GradientButton("Connect", Modifier.width(92.dp)) { vm.startGoogleAuth(context) } } } }
             if (vm.isGoogleConnected) {
                 items(vm.driveFiles.filter { search.isBlank() || it.name.contains(search, true) }, key = { it.id }) { file -> GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_docs), null, tint = Color(0xFF718FFF), modifier = Modifier.size(23.dp)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(file.name, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1); Text("Google document", color = Color(0xFF7187A9), fontSize = 9.sp) }; SmallGlassButton("Open") { vm.loadDocContent(file.id, file.name); onEdit() } } } }
                 item { Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { var createName by remember { mutableStateOf("") }; OutlinedTextField(createName, { createName = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("New Google Doc") }, colors = editorFieldColors()); GradientButton("Create", Modifier.width(90.dp)) { if (createName.isNotBlank()) { vm.createGoogleDoc(createName); createName = "" } } } }
