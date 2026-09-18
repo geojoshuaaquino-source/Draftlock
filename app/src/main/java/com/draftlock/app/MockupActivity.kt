@@ -123,6 +123,7 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
     var onboarding by remember { mutableStateOf(true) }
     var overrideDialog by remember { mutableStateOf(false) }
     var showSprintPicker by remember { mutableStateOf(false) }
+    var showMonitorConfig by remember { mutableStateOf(false) }
 
     LaunchedEffect(requirements) { vm.refreshUsage() }
     LaunchedEffect(Unit) { vm.checkGoogleConnection(); if (vm.isGoogleConnected) vm.fetchDriveFiles() }
@@ -156,7 +157,8 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                                 onLibrary = { page = MockPage.LIBRARY },
                                 onFocus = { page = MockPage.FOCUS },
                                 onSprint = { if (vm.sprintRunning) page = MockPage.EDITOR else showSprintPicker = true },
-                                onOverride = { overrideDialog = true }
+                                onOverride = { overrideDialog = true },
+                                onMonitorConfig = { showMonitorConfig = true }
                             )
                             MockPage.LIBRARY -> MockLibrary(vm, localDocs) { page = MockPage.EDITOR }
                             MockPage.FOCUS -> MockFocus(vm, lockedApps, requirements) { page = MockPage.SETTINGS }
@@ -179,19 +181,27 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                     }
                 )
             }
-            if (showSprintPicker) {
-                SprintPickerDialog(
-                    vm = vm,
-                    localDocs = localDocs,
-                    onDismiss = { showSprintPicker = false },
-                    onStarted = {
-                        showSprintPicker = false
-                        page = MockPage.EDITOR
-                    }
-                )
             }
         }
     }
+}
+
+@Composable
+private fun MonitorConfigDialog(vm: DraftLockViewModel, onDismiss: () -> Unit) {
+    var prefix by remember(vm.monitorPrefix) { mutableStateOf(vm.monitorPrefix) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Google Doc monitor") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("DraftLock reads matching Docs and counts increases in their word counts. It never edits monitored documents.", fontSize = 12.sp)
+                OutlinedTextField(value = prefix, onValueChange = { prefix = it }, label = { Text("Filename starts with") }, placeholder = { Text("e.g. Chapter") }, singleLine = true)
+                Text("Chapter matches Chapter 1, Chapter 2, etc. It does not match My Chapter Notes.", fontSize = 10.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = { vm.setMonitorPrefix(prefix); onDismiss() }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable
@@ -270,7 +280,8 @@ private fun MockHome(
     onLibrary: () -> Unit,
     onFocus: () -> Unit,
     onSprint: () -> Unit,
-    onOverride: () -> Unit
+    onOverride: () -> Unit,
+    onMonitorConfig: () -> Unit
 ) {
     val progress = (words.toFloat() / quota.coerceAtLeast(1)).coerceIn(0f, 1f)
     LazyColumn(
@@ -314,6 +325,32 @@ private fun MockHome(
                     color = Color(0xFF5C8FFF),
                     trackColor = Color(0x19365A8A)
                 )
+            }
+        }
+        item {
+            val monitorGoal = quota.coerceAtLeast(1)
+            val monitorProgress = (vm.monitorWords.toFloat() / monitorGoal).coerceIn(0f, 1f)
+            GlassSurface {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("GOOGLE DOC MONITOR", color = Color(0xFF6E86AA), fontSize = 9.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
+                        Text(if (vm.monitorEnabled) "\${vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        Text(if (vm.monitorPrefix.isBlank()) "All Google Docs" else "Files starting with \"\${vm.monitorPrefix}\"", color = Color(0xFF7F93B3), fontSize = 10.sp)
+                    }
+                    Switch(checked = vm.monitorEnabled, onCheckedChange = vm::setMonitorEnabled)
+                }
+                Spacer(Modifier.height(10.dp))
+                LinearProgressIndicator(progress = { monitorProgress }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF62D8FF), trackColor = Color(0x19365A8A))
+                Spacer(Modifier.height(7.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("\${vm.monitorWords} / \${monitorGoal} words", color = Color(0xFF9BB0D0), fontSize = 10.sp, modifier = Modifier.weight(1f))
+                    Text(vm.monitorStatus, color = Color(0xFF7187A9), fontSize = 9.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    SmallGlassButton("Configure") { onMonitorConfig() }
+                    SmallGlassButton("Check now") { vm.monitorNow() }
+                }
             }
         }
         item {
