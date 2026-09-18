@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,6 +78,7 @@ class MockupActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent { val vm: DraftLockViewModel = viewModel(); DraftLockMockupApp(vm) }
     }
 }
@@ -141,7 +143,7 @@ private fun GlassSurface(modifier: Modifier = Modifier, content: @Composable Col
 
 @Composable
 private fun MockHeader(vm: DraftLockViewModel, words: Int, quota: Int, page: MockPage) {
-    Row(Modifier.fillMaxWidth().background(Color(0xC9081022)).padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).background(Color(0xC9081022)).padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(Brush.linearGradient(listOf(Color(0xFF4E9DFF), Color(0xFF663CFF)))), contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_logo_draftlock), null, tint = Color.White, modifier = Modifier.size(25.dp))
         }
@@ -162,7 +164,7 @@ private fun MockHeader(vm: DraftLockViewModel, words: Int, quota: Int, page: Moc
 
 @Composable
 private fun MockBottomBar(page: MockPage, onPage: (MockPage) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Color(0xE8061122)).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).background(Color(0xE8061122)).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         MockNav("Home", R.drawable.ic_home, page == MockPage.HOME) { onPage(MockPage.HOME) }
         MockNav("Library", R.drawable.ic_docs, page == MockPage.LIBRARY) { onPage(MockPage.LIBRARY) }
         Box(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(17.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4D8DFF), Color(0xFF633BFF)))).clickable { onPage(MockPage.EDITOR) }, contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_write), null, tint = Color.White, modifier = Modifier.size(22.dp)) }
