@@ -198,7 +198,7 @@ private fun MonitorConfigDialog(vm: DraftLockViewModel, onDismiss: () -> Unit) {
                 Text("Chapter matches Chapter 1, Chapter 2, etc. It does not match My Chapter Notes.", fontSize = 10.sp)
             }
         },
-        confirmButton = { TextButton(onClick = { vm.setMonitorPrefix(prefix); onDismiss() }) { Text("Save") } },
+        confirmButton = { TextButton(onClick = { vm.updateMonitorPrefix(prefix); onDismiss() }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
@@ -336,7 +336,7 @@ private fun MockHome(
                         Text(if (vm.monitorEnabled) "\${vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                         Text(if (vm.monitorPrefix.isBlank()) "All Google Docs" else "Files starting with \"\${vm.monitorPrefix}\"", color = Color(0xFF7F93B3), fontSize = 10.sp)
                     }
-                    Switch(checked = vm.monitorEnabled, onCheckedChange = vm::setMonitorEnabled)
+                    Switch(checked = vm.monitorEnabled, onCheckedChange = vm::updateMonitorEnabled)
                 }
                 Spacer(Modifier.height(10.dp))
                 LinearProgressIndicator(progress = { monitorProgress }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF62D8FF), trackColor = Color(0x19365A8A))
