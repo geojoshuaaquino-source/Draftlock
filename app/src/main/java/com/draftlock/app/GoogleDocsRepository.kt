@@ -163,6 +163,33 @@ class GoogleDocsRepository {
     }
 }
 
+class GoogleApiException(
+    val statusCode: Int,
+    val reason: String?,
+    message: String,
+    val rawResponse: String
+) : IllegalStateException(message) {
+    companion object {
+        fun from(statusCode: Int, response: String, url: String): GoogleApiException {
+            val root = runCatching { JSONObject(response) }.getOrNull()
+            val error = root?.optJSONObject("error")
+            val reason = error?.optJSONArray("errors")?.optJSONObject(0)?.optString("reason")?.takeIf { it.isNotBlank() }
+            val apiMessage = error?.optString("message")?.takeIf { it.isNotBlank() }
+            val friendly = when {
+                reason == "accessNotConfigured" && url.contains("/drive/") ->
+                    "Google Drive API is disabled for this Google Cloud project. Enable the Drive API, wait a few minutes, then retry."
+                reason == "accessNotConfigured" && url.contains("docs.googleapis.com") ->
+                    "Google Docs API is disabled for this Google Cloud project. Enable the Docs API, wait a few minutes, then retry."
+                statusCode == 401 -> "Google authorization expired. Reconnect your Google account and retry."
+                statusCode == 403 && reason == "insufficientFilePermissions" ->
+                    "Google denied access to this document. Open or share the document with DraftLock, then retry."
+                else -> apiMessage ?: "Google API request failed ($statusCode)."
+            }
+            return GoogleApiException(statusCode, reason, friendly, response)
+        }
+    }
+}
+
 data class RemoteFile(
     val id: String,
     val name: String,
