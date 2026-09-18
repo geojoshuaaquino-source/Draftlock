@@ -17,6 +17,7 @@ import net.openid.appauth.TokenResponse
 class GoogleOAuthManager(private val context: Context) {
     companion object {
         const val AUTH_REQUEST_CODE = 7001
+        const val PICKER_REQUEST_CODE = 7002
     }
 
     private val authService = AuthorizationService(context)
@@ -101,6 +102,99 @@ class GoogleOAuthManager(private val context: Context) {
             }
 
             if (context is Activity) context.runOnUiThread(launch) else launch()
+        }
+    }
+
+    fun startPicker(onError: (String) -> Unit = {}) {
+        if (!isConfigured) {
+            onError("Google OAuth is not configured.")
+            return
+        }
+
+        AuthorizationServiceConfiguration.fetchFromIssuer(Uri.parse("https://accounts.google.com")) { configuration, ex ->
+            if (configuration == null) {
+                onError(ex?.errorDescription ?: ex?.error ?: "Google authorization configuration unavailable")
+                return@fetchFromIssuer
+            }
+
+            // Google Picker on Android requires drive.file by itself.
+            val request = AuthorizationRequest.Builder(
+                configuration,
+                effectiveClientId,
+                ResponseTypeValues.CODE,
+                redirectUri
+            )
+                .setScope(driveScope)
+                .setPrompt(AuthorizationRequest.Prompt.CONSENT)
+                .setAdditionalParameters(
+                    mapOf(
+                        "access_type" to "offline",
+                        "trigger_onepick" to "true",
+                        "allow_multiple" to "false",
+                        "mimetypes" to "application/vnd.google-apps.document"
+                    )
+                )
+                .build()
+
+            val launch = {
+                try {
+                    val activity = context as? Activity
+                    if (activity != null) {
+                        activity.startActivityForResult(
+                            authService.getAuthorizationRequestIntent(request),
+                            PICKER_REQUEST_CODE
+                        )
+                    } else {
+                        onError("Google Picker requires an Activity context.")
+                    }
+                } catch (e: Exception) {
+                    onError("Unable to open Google Picker: " + (e.message ?: e.javaClass.simpleName))
+                }
+            }
+
+            if (context is Activity) context.runOnUiThread(launch) else launch()
+        }
+    }
+
+    fun handlePickerResult(intent: Intent, onComplete: (List<String>, String) -> Unit) {
+        val pickedIds = intent.data?.getQueryParameter("picked_file_ids")
+            ?.split(",")
+            ?.map { Uri.decode(it).trim() }
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
+
+        val response = AuthorizationResponse.fromIntent(intent)
+        val error = AuthorizationException.fromIntent(intent)
+
+        if (response == null) {
+            onComplete(emptyList(), error?.errorDescription ?: error?.error ?: "Google Picker authorization failed")
+            return
+        }
+
+        val state = loadState() ?: AuthState()
+        state.update(response, error)
+
+        authService.performTokenRequest(response.createTokenExchangeRequest()) { tokenResponse, tokenError ->
+            if (tokenResponse == null) {
+                onComplete(
+                    emptyList(),
+                    "Google Picker token exchange failed: " +
+                        (tokenError?.errorDescription ?: tokenError?.error ?: tokenError?.type ?: "unknown OAuth error")
+                )
+                return@performTokenRequest
+            }
+
+            state.update(tokenResponse, tokenError)
+            try {
+                store.save(state.jsonSerializeString())
+                if (pickedIds.isEmpty()) {
+                    onComplete(emptyList(), "No Google Doc was selected")
+                } else {
+                    onComplete(pickedIds, "")
+                }
+            } catch (e: Exception) {
+                onComplete(emptyList(), "Could not save Google Picker authorization: " + (e.message ?: "storage error"))
+            }
         }
     }
 
