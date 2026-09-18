@@ -181,7 +181,6 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                     }
                 )
             }
-            }
         }
     }
 }
