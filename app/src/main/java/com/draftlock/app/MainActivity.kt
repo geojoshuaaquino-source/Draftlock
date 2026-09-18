@@ -230,6 +230,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     val overrideUntil = store.overrideUntil.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
     val sprintMinutes = store.sprintMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 25)
     val sprintStartedAt = store.sprintStartedAt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+    val sprintEndAt = store.sprintEndAt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
     var sprintRemainingSeconds by mutableStateOf(0L)
     var sprintRunning by mutableStateOf(false)
     var selectedLocalDocId by mutableStateOf<Long?>(null)
@@ -275,11 +276,14 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         refreshUsage()
         viewModelScope.launch {
             while (true) {
-                val started = sprintStartedAt.value
-                val remaining = if (started > 0L) ((started + sprintMinutes.value * 60_000L - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L) else 0L
+                val endAt = sprintEndAt.value
+                val remaining = if (endAt > 0L) ((endAt - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L) else 0L
                 sprintRemainingSeconds = remaining
                 sprintRunning = remaining > 0L
-                if (started > 0L && remaining == 0L) store.setSprintStartedAt(0L)
+                if (endAt > 0L && remaining == 0L) {
+                    store.setSprintStartedAt(0L)
+                    store.setSprintEndAt(0L)
+                }
                 DraftLockWidget.updateAll(getApplication())
                 delay(1000)
             }
@@ -413,11 +417,14 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
     }
     fun startSprint() = viewModelScope.launch {
-        store.setSprintStartedAt(System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        store.setSprintStartedAt(now)
+        store.setSprintEndAt(now + sprintMinutes.value * 60_000L)
         DraftLockWidget.updateAll(getApplication())
     }
     fun stopSprint() = viewModelScope.launch {
         store.setSprintStartedAt(0L)
+        store.setSprintEndAt(0L)
         DraftLockWidget.updateAll(getApplication())
     }
     fun setDocumentName(value: String) = viewModelScope.launch { store.setDocumentName(value) }
