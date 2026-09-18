@@ -154,7 +154,7 @@ class GoogleDocsRepository {
                 BufferedReader(InputStreamReader(stream, StandardCharsets.UTF_8)).use { it.readText() }
             }.orEmpty()
             if (status !in 200..299) {
-                throw IllegalStateException("Google API request failed ($status): $response")
+                throw GoogleApiException.from(status, response, url)
             }
             return response
         } finally {
