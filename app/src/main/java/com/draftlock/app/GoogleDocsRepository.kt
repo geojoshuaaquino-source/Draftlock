@@ -78,7 +78,7 @@ class GoogleDocsRepository {
         }
     }
 
-    fun getDocumentText(accessToken: String, documentId: String): String {
+    fun getFileName(accessToken: String, fileId: String): String {\n        val json = JSONObject(request(accessToken, "GET", "$DRIVE_BASE/files/$fileId?fields=name"))\n        return json.optString("name", "Google Doc")\n    }\n    fun getDocumentText(accessToken: String, documentId: String): String {
         val json = JSONObject(request(accessToken, "GET", "$DOCS_BASE/documents/$documentId"))
         val body = json.optJSONObject("body") ?: return ""
         val content = body.optJSONArray("content") ?: return ""
@@ -110,7 +110,7 @@ class GoogleDocsRepository {
             for (i in 0 until files.length()) {
                 val item = files.optJSONObject(i) ?: continue
                 val name = item.optString("name")
-                if (name.startsWith(namePrefix, ignoreCase = true)) {
+                if (namePrefix.isBlank() || name.contains(namePrefix, ignoreCase = true)) {
                     val parents = item.optJSONArray("parents") ?: JSONArray()
                     add(RemoteFile(
                         id = item.optString("id"),
