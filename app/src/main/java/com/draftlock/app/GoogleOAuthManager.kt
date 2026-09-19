@@ -13,6 +13,9 @@ import net.openid.appauth.AuthorizationService
 import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.ResponseTypeValues
 import net.openid.appauth.TokenResponse
+import kotlinx.coroutines.resume
+import kotlinx.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 class GoogleOAuthManager(private val context: Context) {
     companion object {
@@ -244,7 +247,7 @@ class GoogleOAuthManager(private val context: Context) {
      * error. Never hangs forever — callers should still apply withTimeout.
      */
     suspend fun freshTokenSuspend(): String? =
-        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+        suspendCancellableCoroutine { cont ->
             withFreshToken(
                 onToken = { token ->
                     if (cont.isActive) cont.resume(token, null)
