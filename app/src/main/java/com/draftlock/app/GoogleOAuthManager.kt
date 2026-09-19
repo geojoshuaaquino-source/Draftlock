@@ -120,7 +120,9 @@ class GoogleOAuthManager(private val context: Context) {
                 return@fetchFromIssuer
             }
 
-            // Google Picker on Android requires drive.file by itself.
+            // Picker uses the same full-drive scope as sign-in: DraftLock does
+            // cloud-wide search + opens arbitrary user docs, which drive.file
+            // (only files the app created/opened) cannot cover.
             val request = AuthorizationRequest.Builder(
                 configuration,
                 effectiveClientId,

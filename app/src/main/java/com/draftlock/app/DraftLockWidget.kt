@@ -37,8 +37,21 @@ class DraftLockWidget : AppWidgetProvider() {
             widgetScope.launch {
                 val store = SettingsStore(appContext)
                 val endAt = store.sprintEndAt.first()
-                val monitorWords = store.monitorWords.first()
-                val monitorEnabled = store.monitorEnabled.first()
+                // Show EFFECTIVE words (typed + same-day monitored) with quota,
+                // not just monitor words — the old text understated progress.
+                val resetMinutes = try { store.resetMinutes.first() } catch (_: Exception) { 0 }
+                val dayKey = UsageTracker.periodStartMillis(resetMinutes).toString()
+                val todayKey = try { store.todayKey.first() } catch (_: Exception) { "" }
+                val todayWords = if (todayKey == dayKey) {
+                    try { store.todayWords.first() } catch (_: Exception) { 0 }
+                } else 0
+                val monitorKey = try { store.monitorDayKey.first() } catch (_: Exception) { "" }
+                val monitorWords = if (monitorKey == dayKey) {
+                    try { store.monitorWords.first() } catch (_: Exception) { 0 }
+                } else 0
+                val quota = try { store.quota.first() } catch (_: Exception) { 1000 }
+                val monitorEnabled = try { store.monitorEnabled.first() } catch (_: Exception) { false }
+                val effective = (todayWords + monitorWords).coerceAtLeast(0)
 
                 val remaining = if (endAt > 0L) {
                     max(0L, ((endAt - System.currentTimeMillis()) / 1000L))
@@ -50,10 +63,11 @@ class DraftLockWidget : AppWidgetProvider() {
                     "NO SPRINT"
                 }
 
-                val status = if (monitorEnabled) "Google Docs monitor active" else "Monitor off"
+                val status = if (monitorEnabled) "Docs monitor active" else "Monitor off"
+                val remainingWords = (quota - effective).coerceAtLeast(0)
                 val views = RemoteViews(appContext.packageName, R.layout.widget_draftlock).apply {
                     setTextViewText(R.id.widget_timer, timer)
-                    setTextViewText(R.id.widget_words, "$monitorWords new words detected")
+                    setTextViewText(R.id.widget_words, "$effective / $quota words • $remainingWords to go")
                     setTextViewText(R.id.widget_status, status)
 
                     // MockupActivity is the LAUNCHER entry point (MainActivity is

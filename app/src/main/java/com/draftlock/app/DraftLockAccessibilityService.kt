@@ -33,19 +33,41 @@ class DraftLockAccessibilityService : AccessibilityService() {
                 val store = com.draftlock.app.data.SettingsStore(app)
                 val locked = db.dao().getLockedAppSync(foregroundPkg) ?: return@launch
                 if (!locked.enabled) return@launch
-                val words = store.todayWords.first()
-                val quota = store.quota.first()
-                val overrideUntil = store.overrideUntil.first()
-                if (System.currentTimeMillis() < overrideUntil) return@launch
-                // Count monitored Google Docs words too (same writing day only),
-                // mirroring DraftLockViewModel.effectiveWords().
+                if (System.currentTimeMillis() < store.overrideUntil.first()) return@launch
+                // Full unlock mirror of DraftLockViewModel.allConditionsComplete():
+                // writing (typed + same-day monitored) combined with per-app
+                // UsageStats requirements via AND/OR logic. The old code only
+                // checked the writing quota, so OR-logic users were blocked
+                // even after meeting an app-time requirement, and AND-logic
+                // users could slip through on writing alone.
                 val resetMinutes = store.resetMinutes.first()
                 val dayKey = UsageTracker.periodStartMillis(resetMinutes).toString()
+                val words = store.todayWords.first()
+                val quota = store.quota.first()
                 val monitored = if (store.monitorDayKey.first() == dayKey) store.monitorWords.first() else 0
-                val done = (words + monitored) >= quota
-                // also check logic/requirements – for simplicity block if writing not done
-                // Full logic: if writing OR logic, allow if either done – we mirror ViewModel logic quickly
-                if (done) return@launch
+                val writingDone = (words + monitored) >= quota
+                val logic = try { store.logic.first() } catch (_: Exception) { "AND" }
+                val requirements = try { db.dao().observeRequirements().first() } catch (_: Exception) { emptyList() }
+                val enabled = requirements.filter { it.enabled }
+                val unlocked = if (enabled.isEmpty()) {
+                    writingDone
+                } else {
+                    val usage = UsageTracker(app)
+                    val start = UsageTracker.periodStartMillis(resetMinutes)
+                    val appDone = if (!usage.hasUsageAccess()) {
+                        // Without Usage Access we can't verify app-time; fail
+                        // closed on the writing goal only for AND, open for OR
+                        // only when writing is done.
+                        enabled.map { false }
+                    } else {
+                        enabled.map { req ->
+                            usage.minutesForPackage(req.packageName, start) >= req.requiredMinutes
+                        }
+                    }
+                    if (logic == "OR") writingDone || appDone.any { it }
+                    else writingDone && appDone.all { it }
+                }
+                if (unlocked) return@launch
                 // need to ensure app is indeed blocked – show overlay
                 lastTriggerMs = System.currentTimeMillis()
                 val i = Intent(app, BlockingOverlayActivity::class.java).apply {

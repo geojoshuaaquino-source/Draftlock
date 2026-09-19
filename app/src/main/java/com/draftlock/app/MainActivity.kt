@@ -107,7 +107,7 @@ private enum class Screen(val label: String, val iconRes: Int) {
     WRITE("Write", R.drawable.ic_write),
     APPS("Apps", R.drawable.ic_usage),
     DOCS("Docs", R.drawable.ic_docs),
-    SETTINGS("Settings", R.drawable.ic_analytics)
+    STATS("Stats", R.drawable.ic_analytics)
 }
 
 class MainActivity : ComponentActivity() {
@@ -220,6 +220,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     val requirements = db.dao().observeRequirements().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val lockedApps = db.dao().observeLockedApps().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val localDocs = db.dao().observeLocalDocs().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recentDays = db.dao().observeRecentDays().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val text = store.documentText.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val quota = store.quota.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1000)
     val resetMinutes = store.resetMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
@@ -260,6 +261,9 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     private var lastTextWordCount = 0
     private val monitorDayKey: String get() = UsageTracker.periodStartMillis(resetMinutes.value).toString()
     init {
+        // Background truth-sync must exist even if the user only ever opens
+        // MockupActivity (the LAUNCHER entry) and never MainActivity.
+        try { VaultRefreshScheduler.ensure(getApplication()) } catch (_: Exception) {}
         viewModelScope.launch {
             lastTextWordCount = countWords(text.first())
             monitorEnabledState = store.monitorEnabled.first()
@@ -454,6 +458,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                     store.setMonitorWords(monitorWords, key)
                     store.setMonitorCounts(result.countsJson)
                     store.setMonitorMeta(result.metaJson)
+                    store.snapshotDay()
                     monitorMatchedFiles = result.matched
                     monitorLastChecked = System.currentTimeMillis()
                     monitorLastAdded = result.added
@@ -777,41 +782,60 @@ fun DraftLockApp(vm: DraftLockViewModel) {
     val haptics = LocalHapticFeedback.current
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showOverride by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    // Subscribe so STATS recomposes when history changes.
+    @Suppress("unused") val recentDays by vm.recentDays.collectAsStateWithLifecycle()
 
     LaunchedEffect(requirements) { vm.refreshUsage() }
-    // Single entry-point fetch lives in the isGoogleConnected effect below.
-    // This loop only re-checks connection + usage; it never lists Drive.
-    LaunchedEffect(Unit) { vm.checkGoogleConnection(); while (true) { delay(30_000); vm.refreshUsage(); vm.checkGoogleConnection() } }
+    // Foreground loop: usage/blocking re-check only. Background truth-sync
+    // (VaultRefreshWorker + BootReceiver) owns the app-closed case, so this
+    // loop must NOT do network/Drive work — connection check runs only when
+    // we have no files yet, and Drive fetch lives in the isGoogleConnected
+    // effect below.
+    LaunchedEffect(Unit) {
+        VaultRefreshScheduler.ensure(context)
+        if (vm.monitorEnabledState) GoogleDocsMonitorScheduler.start(context)
+        vm.checkGoogleConnection()
+        while (true) { delay(60_000); vm.refreshUsage() }
+    }
     LaunchedEffect(vm.isGoogleConnected) { if (vm.isGoogleConnected && vm.driveFiles.isEmpty()) vm.fetchDriveFiles() }
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
-            // Aesthetic bg — black 0A0A0F + grid 0.12 + halftone 0.05 + lime 12% top sheen + violet 08 wash (complementary)
-            Box(Modifier.fillMaxSize().background(Color(0xFF08080C))) {
-                Image(painterResource(R.drawable.bg_vault_grid_dark), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.12f)
-                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.05f)
-                Box(Modifier.fillMaxWidth().height(1.dp).align(Alignment.TopCenter).background(Brush.horizontalGradient(listOf(Color.Transparent, Color(0x18D4FF32), Color.Transparent))))
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x0FD4FF32), Color.Transparent), center = androidx.compose.ui.geometry.Offset(360f, 120f), radius = 1100f)))
-                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x087C6CFF), Color.Transparent), center = androidx.compose.ui.geometry.Offset(180f, 820f), radius = 700f)))
+            // Deep Blue Glass bg —_theme bg + blue washes (B choice, no lime)
+            Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
+                Image(painterResource(R.drawable.bg_vault_grid_dark), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.10f)
+                Image(painterResource(R.drawable.bg_pattern_halftone), null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.04f)
+                Box(Modifier.fillMaxWidth().height(1.dp).align(Alignment.TopCenter).background(Brush.horizontalGradient(listOf(Color.Transparent, DraftLockColors.accent.copy(alpha = 0.35f), Color.Transparent))))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(DraftLockColors.accent.copy(alpha = 0.10f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(360f, 120f), radius = 1100f)))
+                Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(DraftLockColors.neonCyan.copy(alpha = 0.06f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(180f, 820f), radius = 700f)))
             }
             Scaffold(
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
-                    // Dark glass top — not opaque, translucent with border (phone glass)
-                    Surface(color = Color(0xE60F0F14), tonalElevation = 0.dp, shadowElevation = 0.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+                    // Deep Blue Glass top — translucent panel + accent hairline
+                    Surface(color = Color(0xE60D1B31), tonalElevation = 0.dp, shadowElevation = 0.dp, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
                         Column {
-                            Box(Modifier.fillMaxWidth().height(1.dp).background(DraftLockColors.accent))
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(DraftLockColors.accent.copy(alpha = 0.6f)))
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(DraftLockColors.glass).padding(1.dp).background(DraftLockColors.panelElevated, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
                                     Image(painter = painterResource(R.drawable.ic_logo_draftlock), null, modifier = Modifier.size(24.dp))
                                 }
                                 Column(Modifier.weight(1f)) {
                                     Text("DRAFTLOCK", style = MaterialTheme.typography.labelMedium, color = Color.White, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black)
-                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Glass bento"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
+                                    Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Deep Blue Glass"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                                 }
-                                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if ((todayWords/500)+1 >= 3) DraftLockColors.melonGreen else DraftLockColors.accent).padding(horizontal = 11.dp, vertical = 5.dp), contentAlignment = Alignment.Center) {
-                                    Text("LVL ${((todayWords + vm.monitorWords)/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
+                                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if ((todayWords/500)+1 >= 3) DraftLockColors.neonCyan else DraftLockColors.accent).padding(horizontal = 11.dp, vertical = 5.dp), contentAlignment = Alignment.Center) {
+                                    Text("LVL ${((todayWords + vm.monitorWords)/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White)
+                                }
+                                // Settings gear — 48dp target, contentDescription for TalkBack
+                                Box(
+                                    Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
+                                        .clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); showSettings = true },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(painterResource(R.drawable.ic_rules), "Open settings", tint = DraftLockColors.muted, modifier = Modifier.size(22.dp))
                                 }
                             }
                             Divider(color = Color(0x1AFFFFFF), thickness = 1.dp)
@@ -819,36 +843,36 @@ fun DraftLockApp(vm: DraftLockViewModel) {
                     }
                 },
                 bottomBar = {
-                    // Vault Brutalist dock — sharp 0, ink, WRITE inverted block inside (not pill, not FAB)
+                    // Deep Blue Glass dock — rounded 18dp bento, single blue accent (B choice)
                     Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).background(DraftLockColors.bg)) {
-                        Divider(color = DraftLockColors.line, thickness = 1.dp)
-                        Row(Modifier.fillMaxWidth().height(64.dp).background(DraftLockColors.panel).padding(horizontal = 4.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Divider(color = DraftLockColors.line.copy(alpha = 0.5f), thickness = 1.dp)
+                        Row(Modifier.fillMaxWidth().height(68.dp).background(DraftLockColors.panel).padding(horizontal = 6.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             val left = listOf(Screen.HOME, Screen.APPS)
-                            val right = listOf(Screen.DOCS, Screen.SETTINGS)
+                            val right = listOf(Screen.DOCS, Screen.STATS)
                             left.forEach { item ->
                                 val selected = screen == item
-                                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(0.dp)).background(if (selected) Color(0xFF1A1A1E) else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }.padding(1.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(if (selected) GlassTokens.glassStrong else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }.padding(1.dp), contentAlignment = Alignment.Center) {
                                     if (selected) Box(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter).background(DraftLockColors.accent))
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Icon(painterResource(item.iconRes), item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
+                                        Icon(painterResource(item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(22.dp))
                                         Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.8.sp)
                                     }
                                 }
                             }
-                            // Center WRITE — inverted lime block, sharp 0, spans wider, brutalist special
-                            Box(Modifier.weight(1.6f).fillMaxHeight().padding(horizontal = 4.dp).clip(RoundedCornerShape(0.dp)).background(DraftLockColors.accent).clickable { haptics.performHapticFeedback(HapticFeedbackType.LongPress); screen = Screen.WRITE }, contentAlignment = Alignment.Center) {
+                            // Center WRITE — blue primary block, rounded 14dp glass
+                            Box(Modifier.weight(1.6f).fillMaxHeight().padding(horizontal = 4.dp).clip(RoundedCornerShape(14.dp)).background(DraftLockColors.accent).clickable { haptics.performHapticFeedback(HapticFeedbackType.LongPress); screen = Screen.WRITE }, contentAlignment = Alignment.Center) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Icon(painterResource(R.drawable.ic_write), "Write", tint = Color.Black, modifier = Modifier.size(18.dp))
-                                    Text("WRITE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 1.0.sp)
-                                    Text("→", color = Color.Black, fontWeight = FontWeight.Black)
+                                    Icon(painterResource(R.drawable.ic_write), contentDescription = "Write", tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Text("WRITE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 1.0.sp)
+                                    Text("→", color = Color.White, fontWeight = FontWeight.Black)
                                 }
                             }
                             right.forEach { item ->
                                 val selected = screen == item
-                                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(0.dp)).background(if (selected) Color(0xFF1A1A1E) else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }.padding(1.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(if (selected) GlassTokens.glassStrong else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }.padding(1.dp), contentAlignment = Alignment.Center) {
                                     if (selected) Box(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter).background(DraftLockColors.accent))
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Icon(painterResource(item.iconRes), item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
+                                        Icon(painterResource(item.iconRes), contentDescription = item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(22.dp))
                                         Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.8.sp)
                                     }
                                 }
@@ -873,7 +897,28 @@ fun DraftLockApp(vm: DraftLockViewModel) {
                             Screen.WRITE -> WriteScreen(vm, text, todayWords + vm.monitorWords, quota, documentName)
                             Screen.APPS -> UnifiedAppsScreen(vm, context)
                             Screen.DOCS -> DocsScreen(vm)
-                            Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
+                            Screen.STATS -> com.draftlock.app.ui.StatsScreen(vm, todayWords + vm.monitorWords, quota)
+                        }
+                    }
+                }
+            }
+            // Full settings as overlay sheet (keeps dock at 5 items per ux bottom-nav-limit).
+            if (showSettings) {
+                Box(Modifier.fillMaxSize().background(Color(0x99050A14))) {
+                    Card(
+                        modifier = Modifier.fillMaxSize().padding(top = 48.dp),
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        colors = CardDefaults.cardColors(containerColor = DraftLockColors.bg)
+                    ) {
+                        Column(Modifier.fillMaxSize()) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
+                                TextButton(onClick = { showSettings = false }) { Text("Close", color = DraftLockColors.accent) }
+                            }
+                            Divider(color = DraftLockColors.line.copy(alpha = 0.5f))
+                            Box(Modifier.weight(1f)) {
+                                SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }
+                            }
                         }
                     }
                 }
@@ -892,9 +937,10 @@ fun DraftLockApp(vm: DraftLockViewModel) {
 
 @androidx.compose.runtime.Composable
 fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: List<AppRequirement>, lockedApps: List<LockedApp>, logic: String, context: Context, onWrite: () -> Unit, onOverride: () -> Unit) {
+    // Single source of truth — never re-implement unlock (was ignoring overrideUntil).
     val complete = vm.allConditionsComplete()
     val progress = (words.toFloat() / quota.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-    val isUnlocked = words >= quota && (requirements.filter { it.enabled }.isEmpty() || logic == "OR" && requirements.filter { it.enabled }.any { (vm.usageMinutes[it.packageName] ?: 0) >= it.requiredMinutes } || logic == "AND" && requirements.filter { it.enabled }.all { (vm.usageMinutes[it.packageName] ?: 0) >= it.requiredMinutes })
+    val isUnlocked = complete
     // staggered entrance - Linear/Apple restraint, 40ms per row
     LazyColumn(Modifier.fillMaxSize().background(DraftLockColors.bg), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 84.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -914,18 +960,18 @@ fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: Lis
                     Spacer(Modifier.weight(1f))
                     Text("LVL ${(words/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = DraftLockColors.accent, letterSpacing = 0.8.sp)
                 }
-                Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFF1E1E24))) {
+                Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFF16283F))) {
                     Box(Modifier.fillMaxWidth(progress).height(10.dp).background(DraftLockColors.accent))
                 }
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("${(progress*100).toInt()}%  •  ${(quota-words).coerceAtLeast(0)} to go", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontWeight = FontWeight.Medium)
                     Text(if (isUnlocked) "GOAL MET" else "KEEP INKING", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (isUnlocked) DraftLockColors.accent else DraftLockColors.muted, letterSpacing = 0.8.sp)
                 }
-                // Inline WRITE — sharp 0, inverted, not separate full card
-                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(DraftLockColors.accent).clickable { onWrite() }, contentAlignment = Alignment.Center) {
+                // Inline WRITE — blue glass primary, rounded 14dp, white text (B choice)
+                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(DraftLockColors.accent).clickable { onWrite() }, contentAlignment = Alignment.Center) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painterResource(R.drawable.ic_write), "Write", tint = Color.Black, modifier = Modifier.size(18.dp))
-                        Text(if (isUnlocked) "CONTINUE WRITING — VAULT OPEN" else "WRITE TO UNLOCK →", fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 0.6.sp, fontSize = 12.sp)
+                        Icon(painterResource(R.drawable.ic_write), contentDescription = "Write", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Text(if (isUnlocked) "CONTINUE WRITING — VAULT OPEN" else "WRITE TO UNLOCK →", fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 0.6.sp, fontSize = 12.sp)
                     }
                 }
                 }
@@ -1013,59 +1059,6 @@ fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: Lis
 }
 
 @androidx.compose.runtime.Composable
-private fun VaultStatusCard(words: Int, quota: Int, progress: Float, isUnlocked: Boolean, onWrite: () -> Unit) {
-    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = GlassTokens.glassStrong), elevation = CardDefaults.cardElevation(0.dp), modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.padding(18.dp).background(Brush.verticalGradient(listOf(Color(0x1A00CD3C), Color(0x0A000000))), RoundedCornerShape(20.dp)).padding(1.dp).background(DraftLockColors.line.copy(alpha = 0.15f), RoundedCornerShape(20.dp))) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                // Header: status badge + level
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(if (isUnlocked) DraftLockColors.accent else Color(0xFF242424)), contentAlignment = Alignment.Center) {
-                            Icon(painterResource(R.drawable.ic_write), null, tint = if (isUnlocked) Color.Black else DraftLockColors.muted, modifier = Modifier.size(22.dp))
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text(if (isUnlocked) "DAILY GOAL MET" else "INK PROGRESS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (isUnlocked) DraftLockColors.accent else DraftLockColors.muted, letterSpacing = 0.8.sp)
-                            Text("$words / $quota words", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
-                        }
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("LVL ${(words / 500) + 1}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = DraftLockColors.melonGreen, letterSpacing = 1.0.sp)
-                        Text("VAULT", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, letterSpacing = 1.2.sp)
-                    }
-                }
-                // Progress bar — thick, gradient, centerpiece
-                Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF1A1A1A))) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(progress.coerceAtMost(1f))
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Brush.horizontalGradient(listOf(DraftLockColors.xpStart, DraftLockColors.xpEnd)))
-                            .animateContentSize(animationSpec = tween(400, easing = EaseOutCubic))
-                    )
-                }
-                // Progress label
-                Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${(progress * 100).toInt()}% complete", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.accent, fontWeight = FontWeight.Black)
-                    Text("${(quota - words).coerceAtLeast(0)} words to go", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
-                }
-                // Primary action — full width, distinct
-                Button(onClick = onWrite, modifier = Modifier.fillMaxWidth().height(48.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = if (isUnlocked) DraftLockColors.melonGreen else DraftLockColors.accent,
-                    contentColor = Color.Black
-                ), shape = RoundedCornerShape(14.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(R.drawable.ic_write), null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isUnlocked) "CONTINUE WRITING" else "OPEN VAULT & WRITE", fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 0.5.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@androidx.compose.runtime.Composable
 private fun MicroStatCard(label: String, value: String, tint: Color, icon: Int, modifier: Modifier = Modifier) {
     Box(Modifier.background(DraftLockColors.panel).then(modifier)) {
         Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1114,7 +1107,11 @@ private fun RequirementRow(name: String, current: Int, required: Int, complete: 
 @androidx.compose.runtime.Composable
 fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, documentName: String) {
     val ctx = LocalContext.current
-    var draft by remember(text) { mutableStateOf(text) }
+    // Key on revision so Drive loads replace stale drafts instead of being overwritten.
+    // The old remember(text) + isBlank guard dropped server loads whenever the
+    // user had typed anything — revision-keyed state always wins on doc switch.
+    val revision = vm.documentRevision
+    var draft by remember(revision) { mutableStateOf(text) }
     var nameInput by remember(documentName) { mutableStateOf(documentName) }
     var showPicker by remember { mutableStateOf(false) }
     var pickQuery by remember { mutableStateOf("") }
@@ -1162,9 +1159,9 @@ fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, do
             }
         }
         // Editor — true dark, mono, sharp 0, hairline with linked grid/halftone assets
-        Box(Modifier.fillMaxWidth().weight(1f).background(DraftLockColors.panel).padding(1.dp).background(Color(0xFF0F0F12))) {
-            Image(painterResource(R.drawable.bg_editor_halftone_dark), null, modifier = Modifier.matchParentSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.42f)
-            Box(Modifier.matchParentSize().background(Brush.radialGradient(listOf(Color(0x04D4FF32), Color.Transparent), radius=600f)))
+        Box(Modifier.fillMaxWidth().weight(1f).background(DraftLockColors.panel).padding(1.dp).background(Color(0xFF0D1B31))) {
+            Image(painterResource(R.drawable.bg_editor_halftone_dark), null, modifier = Modifier.matchParentSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alpha = 0.30f)
+            Box(Modifier.matchParentSize().background(Brush.radialGradient(listOf(DraftLockColors.accent.copy(alpha = 0.06f), Color.Transparent), radius=600f)))
             OutlinedTextField(value = draft, onValueChange = { draft = it; vm.onTextChanged(it) }, modifier = Modifier.fillMaxSize().padding(2.dp), placeholder = { Text("ink the vault… the steel listens. pick a doc above, name it, save.", color = DraftLockColors.muted, style = MaterialTheme.typography.bodySmall) }, shape = RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedTextColor = DraftLockColors.ink, unfocusedTextColor = DraftLockColors.ink, cursorColor = DraftLockColors.accent))
         }
         Text("Pick → Name → Save. Edit any chapter, dark terminal, vault sealed until goal.", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp)

@@ -6,16 +6,23 @@ import android.content.Context
 import com.draftlock.app.admin.DraftLockDeviceAdminReceiver
 
 class AppBlocker(private val context: Context) {
-    private val dpm = context.getSystemService(DevicePolicyManager::class.java)
+    private val dpm: DevicePolicyManager? = try {
+        context.getSystemService(DevicePolicyManager::class.java)
+    } catch (_: Exception) { null }
     private val admin = ComponentName(context, DraftLockDeviceAdminReceiver::class.java)
 
-    fun canSuspendApps(): Boolean =
-        dpm.isDeviceOwnerApp(context.packageName) || dpm.isProfileOwnerApp(context.packageName)
+    fun canSuspendApps(): Boolean {
+        val manager = dpm ?: return false
+        return try {
+            manager.isDeviceOwnerApp(context.packageName) || manager.isProfileOwnerApp(context.packageName)
+        } catch (_: Exception) { false }
+    }
 
     fun diagnostics(): String {
-        val isDO = dpm.isDeviceOwnerApp(context.packageName)
-        val isPO = dpm.isProfileOwnerApp(context.packageName)
-        val adminActive = dpm.isAdminActive(admin)
+        val manager = dpm
+        val isDO = try { manager?.isDeviceOwnerApp(context.packageName) == true } catch (_: Exception) { false }
+        val isPO = try { manager?.isProfileOwnerApp(context.packageName) == true } catch (_: Exception) { false }
+        val adminActive = try { manager?.isAdminActive(admin) == true } catch (_: Exception) { false }
         val accessibilityOn = isAccessibilityEnabled()
         return when {
             isDO -> "Device Owner ✓ — strong suspend + popup active"
@@ -34,20 +41,22 @@ class AppBlocker(private val context: Context) {
     fun isPopupBlockingAvailable(): Boolean = isAccessibilityEnabled()
 
     fun suspend(packages: List<String>): List<String> {
+        val manager = dpm ?: return emptyList()
         if (!canSuspendApps() || packages.isEmpty()) return emptyList()
         return try {
-            dpm.setPackagesSuspended(admin, packages.filter { it != context.packageName }.toTypedArray(), true).toList()
+            manager.setPackagesSuspended(admin, packages.filter { it != context.packageName }.toTypedArray(), true)?.toList() ?: emptyList()
         } catch (_: SecurityException) {
             emptyList()
-        }
+        } catch (_: Exception) { emptyList() }
     }
 
     fun unsuspend(packages: List<String>): List<String> {
+        val manager = dpm ?: return emptyList()
         if (!canSuspendApps() || packages.isEmpty()) return emptyList()
         return try {
-            dpm.setPackagesSuspended(admin, packages.filter { it != context.packageName }.toTypedArray(), false).toList()
+            manager.setPackagesSuspended(admin, packages.filter { it != context.packageName }.toTypedArray(), false)?.toList() ?: emptyList()
         } catch (_: SecurityException) {
             emptyList()
-        }
+        } catch (_: Exception) { emptyList() }
     }
 }

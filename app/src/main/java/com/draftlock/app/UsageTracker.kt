@@ -8,14 +8,17 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class UsageTracker(private val context: Context) {
-    private val usageStatsManager = context.getSystemService(UsageStatsManager::class.java)
+    private val usageStatsManager = try {
+        context.getSystemService(UsageStatsManager::class.java)
+    } catch (_: Exception) { null }
 
     fun hasUsageAccess(): Boolean = try {
         val appOps = context.getSystemService(android.app.AppOpsManager::class.java)
         val mode = appOps?.checkOpNoThrow("android:get_usage_stats", android.os.Process.myUid(), context.packageName)
         if (mode == android.app.AppOpsManager.MODE_ALLOWED) true else {
             val now = System.currentTimeMillis()
-            usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000, now).isNotEmpty()
+            val mgr = usageStatsManager ?: return false
+            (mgr.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000, now)?.isNotEmpty() == true)
         }
     } catch (_: Exception) { false }
 
@@ -24,12 +27,16 @@ class UsageTracker(private val context: Context) {
     }
 
     fun minutesForPackage(packageName: String, dayStartMillis: Long): Int {
+        val mgr = usageStatsManager ?: return 0
         val now = System.currentTimeMillis()
-        val stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_BEST,
-            dayStartMillis,
-            now
-        )
+        if (dayStartMillis >= now) return 0
+        val stats = try {
+            mgr.queryUsageStats(
+                UsageStatsManager.INTERVAL_BEST,
+                dayStartMillis,
+                now
+            ) ?: emptyList()
+        } catch (_: Exception) { emptyList() }
         val millis = stats.filter { it.packageName == packageName }
             .sumOf { it.totalTimeInForeground }
         return (millis / 60_000L).toInt()

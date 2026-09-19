@@ -107,13 +107,21 @@ class SettingsStore(private val context: Context) {
         val prefs = context.draftLockDataStore.data.first()
         val dayKey = prefs[Keys.todayKey] ?: return
         if (dayKey.isBlank()) return
+        val typed = prefs[Keys.todayWords] ?: 0
+        val monitored = prefs[Keys.monitorWords] ?: 0
+        val monitorKey = prefs[Keys.monitorDayKey] ?: ""
+        // Merge monitored Google Docs words only when they belong to the current writing day.
+        val total = typed + if (monitorKey == dayKey) monitored else 0
         DraftLockDatabase.get(context).dao().upsertDay(
             DailyRecord(
                 dayKey = dayKey,
-                words = prefs[Keys.todayWords] ?: 0,
+                words = total.coerceAtLeast(0),
                 quota = prefs[Keys.quota] ?: 1000,
                 overrideUsed = prefs[Keys.overrideUsed] ?: false
             )
         )
     }
+
+    /** Public snapshot hook for monitor updates — keeps history in sync without double-counting. */
+    suspend fun snapshotDay() { recordCurrentDay() }
 }
