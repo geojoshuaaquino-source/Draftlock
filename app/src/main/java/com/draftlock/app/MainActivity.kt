@@ -249,7 +249,9 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var monitorWords by mutableStateOf(0)
     var monitorMatchedFiles by mutableStateOf(0)
     var monitorStatus by mutableStateOf("Monitor off")
-    private var monitorRunning = false
+    var monitorChecking by mutableStateOf(false)
+    var monitorLastChecked by mutableStateOf(0L)
+    var monitorLastAdded by mutableStateOf(0)
     var isGoogleConnected by mutableStateOf(try { GoogleOAuthManager(getApplication()).isConnected() } catch (_: Exception) { false })
     private var lastTextWordCount = 0
     private val monitorDayKey: String get() = UsageTracker.periodStartMillis(resetMinutes.value).toString()
@@ -261,10 +263,13 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             if (monitorEnabledState) GoogleDocsMonitorScheduler.start(getApplication())
             val key = monitorDayKey
             monitorWords = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
+            if (monitorEnabledState && !isGoogleConnected) {
+                monitorStatus = "Connect Google first to monitor Docs"
+            }
         }
         viewModelScope.launch {
             while (true) {
-                if (monitorEnabledState && isGoogleConnected && !monitorRunning) monitorNow()
+                if (monitorEnabledState && isGoogleConnected && !monitorChecking) monitorNow()
                 delay(10_000)
             }
         }
@@ -345,7 +350,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             store.setMonitorEnabled(value)
             if (value) {
                 GoogleDocsMonitorScheduler.start(getApplication())
-                monitorNow()
+                if (!isGoogleConnected) {
+                    monitorStatus = "Connect Google first to monitor Docs"
+                } else {
+                    monitorNow()
+                }
             } else {
                 GoogleDocsMonitorScheduler.stop(getApplication())
                 monitorStatus = "Monitor paused"
@@ -353,8 +362,12 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
     }
     fun monitorNow(resetBaseline: Boolean = false) {
-        if (monitorRunning || !isGoogleConnected) return
-        monitorRunning = true
+        if (monitorChecking) return
+        if (!isGoogleConnected) {
+            monitorStatus = "Connect Google first to monitor Docs"
+            return
+        }
+        monitorChecking = true
         monitorStatus = "Checking matching Google Docs…"
         val prefix = monitorPrefixState.trim()
         viewModelScope.launch {
@@ -363,8 +376,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                 val manager = GoogleOAuthManager(getApplication())
                 manager.withFreshToken(onToken = { token ->
                     if (token == null) {
-                        monitorRunning = false
-                        monitorStatus = "Google authorization required"
+                        monitorChecking = false
+                        monitorStatus = "Google authorization required — reconnect"
                         return@withFreshToken
                     }
                     viewModelScope.launch(Dispatchers.IO) {
@@ -393,25 +406,34 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                                     store.setMonitorCounts(counts.toString())
                                 }
                                 monitorMatchedFiles = files.size
-                                monitorStatus = "Watching " + files.size + " matching Doc" + if (files.size == 1) "" else "s"
-                                monitorRunning = false
+                                monitorLastChecked = System.currentTimeMillis()
+                                monitorLastAdded = added
+                                monitorStatus = if (files.isEmpty()) {
+                                    if (prefix.isBlank()) "No Google Docs found — write one first"
+                                    else "No Docs start with \"$prefix\""
+                                } else if (added > 0) {
+                                    "+$added new words • Watching ${files.size} Doc" + if (files.size == 1) "" else "s"
+                                } else {
+                                    "Watching " + files.size + " matching Doc" + if (files.size == 1) "" else "s" + " • up to date"
+                                }
+                                monitorChecking = false
                                 DraftLockWidget.updateAll(getApplication())
                             }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
                                 monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
-                                monitorRunning = false
+                                monitorChecking = false
                                 DraftLockWidget.updateAll(getApplication())
                             }
                         }
                     }
                 }, onError = {
                     monitorStatus = it
-                    monitorRunning = false
+                    monitorChecking = false
                 })
             } catch (e: Exception) {
                 monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
-                monitorRunning = false
+                monitorChecking = false
                 DraftLockWidget.updateAll(getApplication())
             }
         }
@@ -488,11 +510,17 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun checkGoogleConnection() {
         val mgr = GoogleOAuthManager(getApplication())
         isGoogleConfigured = mgr.isConfigured
+        val wasConnected = isGoogleConnected
         isGoogleConnected = mgr.isConnected()
         syncStatus = when {
             isGoogleConnected -> "Gmail linked • Drive ready"
             !isGoogleConfigured -> "Connect Gmail — add Client ID in Settings"
             else -> "Tap Connect Gmail to link Drive"
+        }
+        if (isGoogleConnected && !wasConnected && monitorEnabledState && !monitorChecking) {
+            monitorNow()
+        } else if (!isGoogleConnected && monitorEnabledState) {
+            monitorStatus = "Connect Google first to monitor Docs"
         }
     }
     fun startGooglePicker(context: Context) {

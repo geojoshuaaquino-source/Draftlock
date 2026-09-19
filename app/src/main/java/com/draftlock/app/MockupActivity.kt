@@ -170,6 +170,9 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
             }
             if (onboarding) MockOnboarding { onboarding = false }
             if (overrideDialog) OverrideDialog(vm) { overrideDialog = false }
+            if (showMonitorConfig) {
+                MonitorConfigDialog(vm, onDismiss = { showMonitorConfig = false })
+            }
             if (showSprintPicker) {
                 SprintPickerDialog(
                     vm = vm,
@@ -198,7 +201,7 @@ private fun MonitorConfigDialog(vm: DraftLockViewModel, onDismiss: () -> Unit) {
                 Text("Chapter matches Chapter 1, Chapter 2, etc. It does not match My Chapter Notes.", fontSize = 10.sp)
             }
         },
-        confirmButton = { TextButton(onClick = { vm.updateMonitorPrefix(prefix); onDismiss() }) { Text("Save") } },
+        confirmButton = { TextButton(onClick = { vm.updateMonitorPrefix(prefix); vm.monitorNow(); onDismiss() }) { Text("Save & Check") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
@@ -329,6 +332,7 @@ private fun MockHome(
         item {
             val monitorGoal = quota.coerceAtLeast(1)
             val monitorProgress = (vm.monitorWords.toFloat() / monitorGoal).coerceIn(0f, 1f)
+            val context = LocalContext.current
             GlassSurface {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -336,19 +340,59 @@ private fun MockHome(
                         Text(if (vm.monitorEnabledState) "${vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                         Text(if (vm.monitorPrefixState.isBlank()) "All Google Docs" else "Files starting with \"" + vm.monitorPrefixState + "\"", color = Color(0xFF7F93B3), fontSize = 10.sp)
                     }
-                    Switch(checked = vm.monitorEnabledState, onCheckedChange = vm::updateMonitorEnabled)
+                    if (vm.monitorChecking) {
+                        CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp, color = Color(0xFF62D8FF))
+                    } else {
+                        Switch(checked = vm.monitorEnabledState, onCheckedChange = vm::updateMonitorEnabled)
+                    }
+                }
+                if (!vm.isGoogleConnected) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFFC76B)))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Google login required to monitor Docs", color = Color(0xFFFFC76B), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    GradientButton("Connect Google", Modifier.fillMaxWidth()) { vm.startGoogleAuth(context) }
                 }
                 Spacer(Modifier.height(10.dp))
                 LinearProgressIndicator(progress = { monitorProgress }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF62D8FF), trackColor = Color(0x19365A8A))
                 Spacer(Modifier.height(7.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(vm.monitorWords.toString() + " / " + monitorGoal + " words", color = Color(0xFF9BB0D0), fontSize = 10.sp, modifier = Modifier.weight(1f))
-                    Text(vm.monitorStatus, color = Color(0xFF7187A9), fontSize = 9.sp)
+                    if (vm.monitorChecking) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp, color = Color(0xFF62D8FF))
+                            Text("Checking…", color = Color(0xFF62D8FF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Text(vm.monitorStatus, color = Color(0xFF7187A9), fontSize = 9.sp)
+                    }
+                }
+                if (vm.monitorMatchedFiles > 0 || vm.monitorLastChecked > 0L) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        buildString {
+                            if (vm.monitorMatchedFiles > 0) append("Watching ${vm.monitorMatchedFiles} Doc" + if (vm.monitorMatchedFiles == 1) "" else "s")
+                            if (vm.monitorLastChecked > 0L) {
+                                if (isNotEmpty()) append(" • ")
+                                val mins = ((System.currentTimeMillis() - vm.monitorLastChecked) / 60_000L).coerceAtLeast(0L)
+                                append(if (mins < 1L) "checked just now" else "checked ${mins}m ago")
+                            }
+                            if (vm.monitorLastAdded > 0) append(" • +${vm.monitorLastAdded} new")
+                        },
+                        color = Color(0xFF67DDB5), fontSize = 9.sp, fontWeight = FontWeight.Medium
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     SmallGlassButton("Configure") { onMonitorConfig() }
-                    SmallGlassButton("Check now") { vm.monitorNow() }
+                    if (vm.monitorChecking) {
+                        SmallGlassButton("Checking…") { }
+                    } else {
+                        SmallGlassButton("Check now") { vm.monitorNow() }
+                    }
                 }
             }
         }
