@@ -13,9 +13,9 @@ import net.openid.appauth.AuthorizationService
 import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.ResponseTypeValues
 import net.openid.appauth.TokenResponse
-import kotlinx.coroutines.resume
-import kotlinx.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class GoogleOAuthManager(private val context: Context) {
     companion object {
@@ -250,7 +250,7 @@ class GoogleOAuthManager(private val context: Context) {
         suspendCancellableCoroutine { cont ->
             withFreshToken(
                 onToken = { token ->
-                    if (cont.isActive) cont.resume(token, null)
+                    if (cont.isActive) cont.resume(token)
                 },
                 onError = { err ->
                     if (cont.isActive) cont.resumeWithException(GoogleAuthException(err))
