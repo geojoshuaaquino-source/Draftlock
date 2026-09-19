@@ -43,7 +43,12 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="false" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <receiver
             android:name=".DraftLockWidget"
@@ -56,14 +61,11 @@
                 android:resource="@xml/draftlock_widget_info" />
         </receiver>
 
+        <!-- Prototype screen kept for design reference; NOT the launcher.
+             MainActivity is the single real entry point. -->
         <activity
             android:name=".MockupActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false" />
 
         <activity
             android:name=".PrototypeActivity"

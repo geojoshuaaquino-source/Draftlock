@@ -70,9 +70,9 @@ class DraftLockWidget : AppWidgetProvider() {
                     setTextViewText(R.id.widget_words, "$effective / $quota words • $remainingWords to go")
                     setTextViewText(R.id.widget_status, status)
 
-                    // MockupActivity is the LAUNCHER entry point (MainActivity is
-                    // exported=false / internal), so the widget must open it.
-                    val launch = Intent(appContext, MockupActivity::class.java)
+                    // MainActivity is the single real entry point (MockupActivity
+                    // is a design prototype, not the launcher).
+                    val launch = Intent(appContext, MainActivity::class.java)
                     val pending = PendingIntent.getActivity(
                         appContext,
                         8101,
