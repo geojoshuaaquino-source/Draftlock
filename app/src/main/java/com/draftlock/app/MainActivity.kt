@@ -253,6 +253,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var monitorChecking by mutableStateOf(false)
     var monitorLastChecked by mutableStateOf(0L)
     var monitorLastAdded by mutableStateOf(0)
+    var monitorIntervalSec by mutableStateOf(20)
     var isGoogleConnected by mutableStateOf(try { GoogleOAuthManager(getApplication()).isConnected() } catch (_: Exception) { false })
     private var lastTextWordCount = 0
     private val monitorDayKey: String get() = UsageTracker.periodStartMillis(resetMinutes.value).toString()
@@ -261,6 +262,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             lastTextWordCount = countWords(text.first())
             monitorEnabledState = store.monitorEnabled.first()
             monitorPrefixState = store.monitorPrefix.first()
+            monitorIntervalSec = store.monitorInterval.first().coerceIn(15, 300)
             if (monitorEnabledState) GoogleDocsMonitorScheduler.start(getApplication())
             val key = monitorDayKey
             monitorWords = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
@@ -270,11 +272,12 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
         viewModelScope.launch {
             while (true) {
-                // Auto-check at most once a minute. Each check is now 1 list call
-                // plus only changed docs (modifiedTime skip), so this stays fast
-                // and avoids Google 429 rate-limit errors.
+                // Real-time foreground checks. Each check is 1 Drive-list call
+                // plus only changed docs (modifiedTime skip), so a 15-30s cadence
+                // stays cheap and avoids Google 429 rate-limit errors.
+                // Background (app closed) is still WorkManager ~15min — Android minimum.
                 if (monitorEnabledState && isGoogleConnected && !monitorChecking) monitorNow(manual = false)
-                delay(60_000)
+                delay(monitorIntervalSec.coerceIn(15, 300) * 1000L)
             }
         }
         viewModelScope.launch {
@@ -365,6 +368,10 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         monitorPrefixState = value.trim()
         viewModelScope.launch { store.setMonitorPrefix(monitorPrefixState) }
     }
+    fun updateMonitorInterval(seconds: Int) {
+        monitorIntervalSec = seconds.coerceIn(15, 300)
+        viewModelScope.launch { store.setMonitorInterval(monitorIntervalSec) }
+    }
     fun updateMonitorEnabled(value: Boolean) {
         monitorEnabledState = value
         viewModelScope.launch {
@@ -388,9 +395,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             monitorStatus = "Connect Google first to monitor Docs"
             return
         }
-        // Throttle background auto-checks; manual "Check now" always runs.
+        // Throttle background auto-checks to the configured interval;
+        // manual "Check now" and app-resume checks always run.
+        val minGap = monitorIntervalSec.coerceIn(15, 300) * 1000L
         if (!manual && !resetBaseline && monitorLastChecked > 0L &&
-            System.currentTimeMillis() - monitorLastChecked < 60_000L
+            System.currentTimeMillis() - monitorLastChecked < minGap
         ) return
         monitorChecking = true
         monitorStatus = "Checking matching Google Docs…"

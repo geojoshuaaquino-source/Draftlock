@@ -43,12 +43,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.draftlock.app.data.AppRequirement
 import com.draftlock.app.data.LocalDocument
 import com.draftlock.app.data.LockedApp
 import com.draftlock.app.ui.theme.DraftLockTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private enum class MockPage { HOME, LIBRARY, FOCUS, EDITOR, SETTINGS }
@@ -129,6 +133,20 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
 
     LaunchedEffect(requirements) { vm.refreshUsage() }
     LaunchedEffect(Unit) { vm.checkGoogleConnection(); if (vm.isGoogleConnected) vm.fetchDriveFiles() }
+    // Real-time: re-check the moment the app comes back to the foreground,
+    // so words written elsewhere appear without tapping Check now.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME &&
+                vm.monitorEnabledState && vm.isGoogleConnected && !vm.monitorChecking
+            ) {
+                vm.monitorNow(manual = true)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(Color(0xFF020817))) {
@@ -201,6 +219,15 @@ private fun MonitorConfigDialog(vm: DraftLockViewModel, onDismiss: () -> Unit) {
                 Text("DraftLock reads matching Docs and counts increases in their word counts. It never edits monitored documents.", fontSize = 12.sp)
                 OutlinedTextField(value = prefix, onValueChange = { prefix = it }, label = { Text("Filename starts with") }, placeholder = { Text("e.g. Chapter") }, singleLine = true)
                 Text("Chapter matches Chapter 1, Chapter 2, etc. It does not match My Chapter Notes.", fontSize = 10.sp)
+                Text("AUTO-REFRESH (while app is open)", color = Color(0xFF6E86AA), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(15, 20, 30, 60).forEach { seconds ->
+                        SmallGlassButton(
+                            if (vm.monitorIntervalSec == seconds) "✓ ${seconds}s" else "${seconds}s"
+                        ) { vm.updateMonitorInterval(seconds) }
+                    }
+                }
+                Text("Background (app closed) still checks every ~15 min — Android minimum.", fontSize = 10.sp)
             }
         },
         confirmButton = { TextButton(onClick = { vm.updateMonitorPrefix(prefix); vm.monitorNow(); onDismiss() }) { Text("Save & Check") } },
@@ -288,6 +315,14 @@ private fun MockHome(
     onMonitorConfig: () -> Unit
 ) {
     val progress = (words.toFloat() / quota.coerceAtLeast(1)).coerceIn(0f, 1f)
+    // Live ticker so "checked Xs ago" stays fresh while auto-refresh runs.
+    var tickNow by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(vm.monitorEnabledState) {
+        while (vm.monitorEnabledState) {
+            delay(5000)
+            tickNow = System.currentTimeMillis()
+        }
+    }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp, 18.dp, 18.dp, 28.dp),
@@ -379,13 +414,32 @@ private fun MockHome(
                             if (vm.monitorMatchedFiles > 0) append("Watching ${vm.monitorMatchedFiles} Doc" + if (vm.monitorMatchedFiles == 1) "" else "s")
                             if (vm.monitorLastChecked > 0L) {
                                 if (isNotEmpty()) append(" • ")
-                                val mins = ((System.currentTimeMillis() - vm.monitorLastChecked) / 60_000L).coerceAtLeast(0L)
-                                append(if (mins < 1L) "checked just now" else "checked ${mins}m ago")
+                                val secs = ((tickNow - vm.monitorLastChecked) / 1000L).coerceAtLeast(0L)
+                                append(
+                                    when {
+                                        secs < 10L -> "checked just now"
+                                        secs < 60L -> "checked ${secs}s ago"
+                                        else -> {
+                                            val mins = secs / 60L
+                                            if (mins < 60L) "checked ${mins}m ago" else "checked ${mins / 60L}h ago"
+                                        }
+                                    }
+                                )
                             }
                             if (vm.monitorLastAdded > 0) append(" • +${vm.monitorLastAdded} new")
                         },
                         color = Color(0xFF67DDB5), fontSize = 11.sp, fontWeight = FontWeight.Medium
                     )
+                }
+                if (vm.monitorEnabledState && vm.isGoogleConnected) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF5CE2AE)))
+                        Text(
+                            "Auto-refresh every ${vm.monitorIntervalSec}s • no need to tap Check",
+                            color = Color(0xFF5CE2AE), fontSize = 11.sp, fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
