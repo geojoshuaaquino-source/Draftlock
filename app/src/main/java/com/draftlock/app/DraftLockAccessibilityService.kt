@@ -37,7 +37,12 @@ class DraftLockAccessibilityService : AccessibilityService() {
                 val quota = store.quota.first()
                 val overrideUntil = store.overrideUntil.first()
                 if (System.currentTimeMillis() < overrideUntil) return@launch
-                val done = words >= quota
+                // Count monitored Google Docs words too (same writing day only),
+                // mirroring DraftLockViewModel.effectiveWords().
+                val resetMinutes = store.resetMinutes.first()
+                val dayKey = UsageTracker.periodStartMillis(resetMinutes).toString()
+                val monitored = if (store.monitorDayKey.first() == dayKey) store.monitorWords.first() else 0
+                val done = (words + monitored) >= quota
                 // also check logic/requirements – for simplicity block if writing not done
                 // Full logic: if writing OR logic, allow if either done – we mirror ViewModel logic quickly
                 if (done) return@launch

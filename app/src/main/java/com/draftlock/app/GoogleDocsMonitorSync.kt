@@ -87,6 +87,8 @@ object GoogleDocsMonitorSync {
     }
 
     fun friendlyError(e: Throwable): String {
+        if (e is GoogleAuthException) return "Google authorization required — reconnect Google and retry."
+        if (e is kotlinx.coroutines.TimeoutCancellationException) return "Check timed out — weak connection. Retrying automatically."
         if (e is GoogleApiException) {
             return when {
                 e.statusCode == 401 -> "Google authorization expired — reconnect Google and retry."
@@ -111,6 +113,7 @@ object GoogleDocsMonitorSync {
     }
 
     fun isRetryable(e: Throwable): Boolean {
+        if (e is GoogleAuthException) return false
         if (e is GoogleApiException) {
             // Auth / permission / disabled-API errors will not heal by retrying fast.
             if (e.statusCode == 401 || e.statusCode == 403) return false

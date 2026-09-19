@@ -100,6 +100,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 private enum class Screen(val label: String, val iconRes: Int) {
     HOME("Home", R.drawable.ic_home),
@@ -254,6 +255,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     var monitorLastChecked by mutableStateOf(0L)
     var monitorLastAdded by mutableStateOf(0)
     var monitorIntervalSec by mutableStateOf(20)
+    private var monitorDayKeyState = ""
     var isGoogleConnected by mutableStateOf(try { GoogleOAuthManager(getApplication()).isConnected() } catch (_: Exception) { false })
     private var lastTextWordCount = 0
     private val monitorDayKey: String get() = UsageTracker.periodStartMillis(resetMinutes.value).toString()
@@ -265,13 +267,25 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             monitorIntervalSec = store.monitorInterval.first().coerceIn(15, 300)
             if (monitorEnabledState) GoogleDocsMonitorScheduler.start(getApplication())
             val key = monitorDayKey
-            monitorWords = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
+            monitorDayKeyState = store.monitorDayKey.first()
+            monitorWords = if (monitorDayKeyState == key) store.monitorWords.first() else 0
             if (monitorEnabledState && !isGoogleConnected) {
                 monitorStatus = "Connect Google first to monitor Docs"
             }
         }
         viewModelScope.launch {
             while (true) {
+                // Day rollover: writing days are period-based, so re-check every
+                // cycle. Without this, writing past midnight kept yesterday's
+                // total until the app was restarted.
+                try {
+                    val dayKey = UsageTracker.periodStartMillis(resetMinutes.value).toString()
+                    if (store.todayKey.first() != dayKey) {
+                        store.setTodayWords(0, dayKey)
+                        monitorWords = 0
+                        monitorDayKeyState = ""
+                    }
+                } catch (_: Exception) {}
                 // Real-time foreground checks. Each check is 1 Drive-list call
                 // plus only changed docs (modifiedTime skip), so a 15-30s cadence
                 // stays cheap and avoids Google 429 rate-limit errors.
@@ -390,7 +404,12 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
     }
     fun monitorNow(resetBaseline: Boolean = false, manual: Boolean = true) {
-        if (monitorChecking) return
+        if (monitorChecking) {
+            // Never silently ignore a tap — the old code did, which made
+            // "Check now" look dead after a stalled check.
+            if (manual) monitorStatus = "Already checking… — wait a moment"
+            return
+        }
         if (!isGoogleConnected) {
             monitorStatus = "Connect Google first to monitor Docs"
             return
@@ -406,67 +425,56 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         val prefix = monitorPrefixState.trim()
         viewModelScope.launch {
             try {
-                val countsStr = store.monitorCounts.first()
-                val metaStr = store.monitorMeta.first()
-                val manager = GoogleOAuthManager(getApplication())
-                manager.withFreshToken(onToken = { token ->
-                    if (token == null) {
-                        monitorChecking = false
-                        monitorStatus = "Google authorization required — reconnect"
-                        return@withFreshToken
+                // Hard timeout: token refresh + serial Docs fetches must never
+                // wedge the flag. Timeout still lands in finally → flag resets,
+                // so auto-refresh self-heals instead of dying silently.
+                withTimeout(150_000L) {
+                    val manager = GoogleOAuthManager(getApplication())
+                    val token = manager.freshTokenSuspend()
+                        ?: throw GoogleAuthException("Google authorization required")
+                    val countsStr = store.monitorCounts.first()
+                    val metaStr = store.monitorMeta.first()
+                    val result = withContext(Dispatchers.IO) {
+                        GoogleDocsMonitorSync.sync(
+                            token = token,
+                            prefix = prefix,
+                            countsJsonStr = countsStr,
+                            metaJsonStr = metaStr,
+                            docsRepo = docsRepo,
+                            resetBaseline = resetBaseline
+                        )
                     }
-                    viewModelScope.launch(Dispatchers.IO) {
-                        try {
-                            val result = GoogleDocsMonitorSync.sync(
-                                token = token,
-                                prefix = prefix,
-                                countsJsonStr = countsStr,
-                                metaJsonStr = metaStr,
-                                docsRepo = docsRepo,
-                                resetBaseline = resetBaseline
-                            )
-                            val key = monitorDayKey
-                            withContext(Dispatchers.Main) {
-                                if (store.monitorDayKey.first() != key) monitorWords = 0
-                                monitorWords += result.added
-                                viewModelScope.launch {
-                                    store.setMonitorWords(monitorWords, key)
-                                    store.setMonitorCounts(result.countsJson)
-                                    store.setMonitorMeta(result.metaJson)
-                                }
-                                monitorMatchedFiles = result.matched
-                                monitorLastChecked = System.currentTimeMillis()
-                                monitorLastAdded = result.added
-                                monitorStatus = if (result.matched == 0) {
-                                    if (prefix.isBlank()) "No Google Docs found — write one first"
-                                    else "No Docs start with \"$prefix\""
-                                } else if (result.added > 0) {
-                                    "+${result.added} new words • Watching ${result.matched} Doc" + if (result.matched == 1) "" else "s"
-                                } else if (result.fetched == 0 && result.skipped > 0) {
-                                    "Watching ${result.matched} Doc" + if (result.matched == 1) "" else "s" + " • no changes"
-                                } else {
-                                    "Watching " + result.matched + " matching Doc" + if (result.matched == 1) "" else "s" + " • up to date"
-                                }
-                                if (result.truncated) {
-                                    monitorStatus += " (top ${GoogleDocsMonitorSync.MAX_DOCS})"
-                                }
-                                monitorChecking = false
-                                DraftLockWidget.updateAll(getApplication())
-                            }
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                monitorStatus = GoogleDocsMonitorSync.friendlyError(e)
-                                monitorChecking = false
-                                DraftLockWidget.updateAll(getApplication())
-                            }
-                        }
+                    val key = monitorDayKey
+                    if (store.monitorDayKey.first() != key) {
+                        monitorWords = 0
+                        monitorDayKeyState = ""
                     }
-                }, onError = {
-                    monitorStatus = "Google authorization required — reconnect"
-                    monitorChecking = false
-                })
+                    monitorWords += result.added
+                    monitorDayKeyState = key
+                    store.setMonitorWords(monitorWords, key)
+                    store.setMonitorCounts(result.countsJson)
+                    store.setMonitorMeta(result.metaJson)
+                    monitorMatchedFiles = result.matched
+                    monitorLastChecked = System.currentTimeMillis()
+                    monitorLastAdded = result.added
+                    monitorStatus = if (result.matched == 0) {
+                        if (prefix.isBlank()) "No Google Docs found — write one first"
+                        else "No Docs start with \"$prefix\""
+                    } else if (result.added > 0) {
+                        "+${result.added} new words • Watching ${result.matched} Doc" + if (result.matched == 1) "" else "s"
+                    } else if (result.fetched == 0 && result.skipped > 0) {
+                        "Watching ${result.matched} Doc" + if (result.matched == 1) "" else "s" + " • no changes"
+                    } else {
+                        "Watching " + result.matched + " matching Doc" + if (result.matched == 1) "" else "s" + " • up to date"
+                    }
+                    if (result.truncated) {
+                        monitorStatus += " (top ${GoogleDocsMonitorSync.MAX_DOCS})"
+                    }
+                    applyBlocking()
+                }
             } catch (e: Exception) {
                 monitorStatus = GoogleDocsMonitorSync.friendlyError(e)
+            } finally {
                 monitorChecking = false
                 DraftLockWidget.updateAll(getApplication())
             }
@@ -553,7 +561,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
         if (isGoogleConnected && !wasConnected && monitorEnabledState && !monitorChecking) {
             monitorNow()
-        } else if (!isGoogleConnected && monitorEnabledState) {
+        } else if (!isGoogleConnected && monitorEnabledState && !monitorChecking) {
             monitorStatus = "Connect Google first to monitor Docs"
         }
     }
@@ -655,7 +663,17 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         manager.withFreshToken(onToken = { token ->
             if (token == null) { isSyncing = false; saveGoogleStatus("Auth error"); return@withFreshToken }
             viewModelScope.launch(Dispatchers.IO) {
-                try { docsRepo.replaceDocument(token, doc, text.value); withContext(Dispatchers.Main) { saveGoogleStatus("Saved ${countWords(text.value)}w → ${documentName.value} at ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())} ✓"); isSyncing = false } }
+                try {
+                    docsRepo.replaceDocument(token, doc, text.value)
+                    val savedWords = countWords(text.value)
+                    withContext(Dispatchers.Main) {
+                        saveGoogleStatus("Saved ${savedWords}w → ${documentName.value} at ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())} ✓")
+                        isSyncing = false
+                        // Re-baseline so the monitor doesn't count these same
+                        // words again on its next check (no double counting).
+                        baselineMonitoredDoc(doc, savedWords)
+                    }
+                }
                 catch (e: Exception) { withContext(Dispatchers.Main) { saveGoogleStatus("Save failed: ${e.message}"); isSyncing = false } }
             }
         }, onError = { isSyncing = false; saveGoogleStatus(it) })
@@ -697,10 +715,35 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     }
 
     fun allConditionsComplete(): Boolean {
-        val writing = todayWords.value >= quota.value
+        val writing = effectiveWords() >= quota.value
         val app = requirements.value.filter { it.enabled }.map { (usageMinutes[it.packageName] ?: 0) >= it.requiredMinutes }
         if (app.isEmpty()) return writing
         return if (logic.value == "OR") writing || app.any { it } else writing && app.all { it }
+    }
+
+    /**
+     * Daily writing total = words typed in the app + words detected in
+     * monitored Google Docs. Monitor words only count when they belong to the
+     * current writing day; stale values from a previous day are ignored.
+     */
+    fun effectiveWords(): Int {
+        val monitored = if (monitorDayKeyState == monitorDayKey) monitorWords else 0
+        return (todayWords.value + monitored).coerceAtLeast(0)
+    }
+
+    /**
+     * Re-baseline one monitored doc without counting (used after pushing local
+     * text to Drive, so the same words are not counted twice).
+     */
+    fun baselineMonitoredDoc(documentId: String, words: Int) {
+        if (documentId.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val counts = org.json.JSONObject(store.monitorCounts.first())
+                counts.put(documentId, words.coerceAtLeast(0))
+                store.setMonitorCounts(counts.toString())
+            } catch (_: Exception) {}
+        }
     }
 
     fun applyBlocking() {
@@ -768,7 +811,7 @@ fun DraftLockApp(vm: DraftLockViewModel) {
                                     Text("Ink Vault • ${if (vm.isGoogleConnected) "Gmail linked" else "Glass bento"}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted)
                                 }
                                 Box(Modifier.clip(RoundedCornerShape(20.dp)).background(if ((todayWords/500)+1 >= 3) DraftLockColors.melonGreen else DraftLockColors.accent).padding(horizontal = 11.dp, vertical = 5.dp), contentAlignment = Alignment.Center) {
-                                    Text("LVL ${(todayWords/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
+                                    Text("LVL ${((todayWords + vm.monitorWords)/500)+1}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Black)
                                 }
                             }
                             Divider(color = Color(0x1AFFFFFF), thickness = 1.dp)
@@ -826,8 +869,8 @@ fun DraftLockApp(vm: DraftLockViewModel) {
                         label = "screenTransition"
                     ) { target ->
                         when (target) {
-                            Screen.HOME -> HomeScreen(vm, todayWords, quota, requirements, lockedApps, logic, context, { screen = Screen.WRITE }, { showOverride = true })
-                            Screen.WRITE -> WriteScreen(vm, text, todayWords, quota, documentName)
+                            Screen.HOME -> HomeScreen(vm, todayWords + vm.monitorWords, quota, requirements, lockedApps, logic, context, { screen = Screen.WRITE }, { showOverride = true })
+                            Screen.WRITE -> WriteScreen(vm, text, todayWords + vm.monitorWords, quota, documentName)
                             Screen.APPS -> UnifiedAppsScreen(vm, context)
                             Screen.DOCS -> DocsScreen(vm)
                             Screen.SETTINGS -> SettingsScreen(vm, quota, resetMinutes, logic, googleAutoSave) { showOverride = true }

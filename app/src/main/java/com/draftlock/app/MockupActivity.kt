@@ -154,7 +154,7 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
             Scaffold(
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
-                topBar = { if (page != MockPage.EDITOR) MockHeader(vm, words, quota, page) },
+                topBar = { if (page != MockPage.EDITOR) MockHeader(vm, words + vm.monitorWords, quota, page) },
                 bottomBar = { if (page != MockPage.EDITOR) MockBottomBar(page) { page = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
@@ -165,7 +165,7 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                         when (target) {
                             MockPage.HOME -> MockHome(
                                 vm = vm,
-                                words = words,
+                                words = words + vm.monitorWords,
                                 quota = quota,
                                 text = text,
                                 name = name,
@@ -349,7 +349,12 @@ private fun MockHome(
                     Column(Modifier.weight(1f)) {
                         Text("TODAY'S PROGRESS", color = Color(0xFF6E86AA), fontSize = 9.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
                         Text("$words", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
-                        Text("of $quota words", color = Color(0xFF7F93B3), fontSize = 11.sp)
+                        Text(
+                            if (vm.monitorEnabledState && vm.monitorWords > 0)
+                                "of $quota words • ${words - vm.monitorWords} in app + ${vm.monitorWords} in Docs"
+                            else "of $quota words",
+                            color = Color(0xFF7F93B3), fontSize = 11.sp
+                        )
                     }
                     Box(
                         Modifier.size(70.dp).clip(CircleShape).background(Color(0x183B75FF))

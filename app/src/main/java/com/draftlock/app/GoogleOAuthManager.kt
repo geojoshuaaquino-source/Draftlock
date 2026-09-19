@@ -238,6 +238,23 @@ class GoogleOAuthManager(private val context: Context) {
         }
     }
 
+    /**
+     * Suspending variant of [withFreshToken]. Returns null when there is no
+     * usable authorization. Throws on refresh failure so callers can map the
+     * error. Never hangs forever — callers should still apply withTimeout.
+     */
+    suspend fun freshTokenSuspend(): String? =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            withFreshToken(
+                onToken = { token ->
+                    if (cont.isActive) cont.resume(token, null)
+                },
+                onError = { err ->
+                    if (cont.isActive) cont.resumeWithException(GoogleAuthException(err))
+                }
+            )
+        }
+
     fun withFreshToken(onToken: (String?) -> Unit, onError: (String) -> Unit = {}) {
         val state = loadState()
         if (state == null || !state.isAuthorized) {
@@ -265,3 +282,5 @@ class GoogleOAuthManager(private val context: Context) {
 
     fun close() = authService.dispose()
 }
+
+class GoogleAuthException(message: String) : IllegalStateException(message)
