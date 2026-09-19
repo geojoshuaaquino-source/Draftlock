@@ -1,0 +1,13 @@
+appId: com.draftlock.app
+---
+# Onboarding & Home smoke test - compares to Mobbin onboarding best practice (progressive disclosure)
+- launchApp:
+    clearState: true
+- assertVisible: "draft" # header logo
+- assertVisible: "Your drafts are safe"
+- assertVisible: "INK VAULT"
+- assertVisible: "WRITE TO UNLOCK"
+- tapOn: "WRITE TO UNLOCK"
+- assertVisible: "Start writing"
+- pressKey: back
+- assertVisible: "INK VAULT"

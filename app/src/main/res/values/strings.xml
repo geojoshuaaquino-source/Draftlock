@@ -2,4 +2,5 @@
     <string name="app_name">DraftLock</string>
     <string name="device_admin_description">Allows DraftLock to suspend selected distracting apps when your writing requirements are incomplete.</string>
     <string name="accessibility_service_description">DraftLock uses this to show a blocking popup when you open a locked app before hitting your writing goal. No keystrokes are collected.</string>
+    <string name="widget_description">DraftLock sprint timer and Google Docs word-count monitor</string>
 </resources>

@@ -179,8 +179,8 @@ class GoogleDocsRepository {
     ): String {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
-            connectTimeout = 20_000
-            readTimeout = 30_000
+            connectTimeout = 10_000
+            readTimeout = 15_000
             setRequestProperty("Authorization", "Bearer $accessToken")
             setRequestProperty("Accept", "application/json")
             if (body != null) {

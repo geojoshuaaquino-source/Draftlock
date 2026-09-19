@@ -92,6 +92,7 @@ import com.draftlock.app.data.LockedApp
 import com.draftlock.app.data.LocalDocument
 import com.draftlock.app.data.SettingsStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
@@ -282,6 +283,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
         refreshUsage()
         viewModelScope.launch {
+            var lastWidgetMinute = -1L
+            var wasRunning = false
             while (true) {
                 val endAt = sprintEndAt.value
                 val remaining = if (endAt > 0L) ((endAt - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L) else 0L
@@ -291,8 +294,15 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                     store.setSprintStartedAt(0L)
                     store.setSprintEndAt(0L)
                 }
-                if (remaining % 10L == 0L) DraftLockWidget.updateAll(getApplication())
-                delay(1000)
+                // Widget only on transitions + once per minute — never every second.
+                val minute = remaining / 60L
+                if (sprintRunning != wasRunning || (sprintRunning && minute != lastWidgetMinute)) {
+                    wasRunning = sprintRunning
+                    lastWidgetMinute = minute
+                    DraftLockWidget.updateAll(getApplication())
+                }
+                // Idle: sleep long. Active: tick per second for the in-app countdown.
+                delay(if (endAt > 0L) 1000 else 5000)
             }
         }
     }
@@ -302,19 +312,27 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         blockingAvailable = blocker.canSuspendApps()
         blockingDiagnostics = blocker.diagnostics()
         if (!usageAccess) return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val start = UsageTracker.periodStartMillis(resetMinutes.value)
-            usageMinutes = requirements.value.associate { it.packageName to usage.minutesForPackage(it.packageName, start) }
-            applyBlocking()
+            val minutes = requirements.value.associate { it.packageName to usage.minutesForPackage(it.packageName, start) }
+            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                usageMinutes = minutes
+                applyBlocking()
+            }
         }
     }
 
+    private var textSaveJob: Job? = null
     fun onTextChanged(value: String) {
         val words = countWords(value)
         val delta = words - lastTextWordCount
         lastTextWordCount = words
         val localId = selectedLocalDocId
-        viewModelScope.launch {
+        // Debounce persistence: UI state is already updated by the caller,
+        // disk + DB writes wait until typing pauses (500ms).
+        textSaveJob?.cancel()
+        textSaveJob = viewModelScope.launch {
+            delay(500)
             store.setDocumentText(value)
             if (localId != null) {
                 val existing = db.dao().getLocalDoc(localId)
@@ -448,12 +466,12 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         val now = System.currentTimeMillis()
         store.setSprintStartedAt(now)
         store.setSprintEndAt(now + sprintMinutes.value * 60_000L)
-        DraftLockWidget.updateAll(getApplication())
+        DraftLockWidget.updateAll(getApplication(), force = true)
     }
     fun stopSprint() = viewModelScope.launch {
         store.setSprintStartedAt(0L)
         store.setSprintEndAt(0L)
-        DraftLockWidget.updateAll(getApplication())
+        DraftLockWidget.updateAll(getApplication(), force = true)
     }
     fun setDocumentName(value: String) = viewModelScope.launch { store.setDocumentName(value) }
     fun setGoogleFolder(value: String) = viewModelScope.launch { store.setGoogleFolderId(value) }
@@ -659,7 +677,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun saveAsNewDoc(name: String) {
         if (name.isBlank()) { saveGoogleStatus("Enter a name for new doc"); return }
         createGoogleDoc(name) { newId ->
-            viewModelScope.launch { delay(300); syncTextToDoc(newId) }
+            syncTextToDoc(newId)
         }
     }
 
@@ -708,8 +726,10 @@ fun DraftLockApp(vm: DraftLockViewModel) {
     var showOverride by remember { mutableStateOf(false) }
 
     LaunchedEffect(requirements) { vm.refreshUsage() }
-    LaunchedEffect(Unit) { vm.checkGoogleConnection(); if (vm.isGoogleConnected) vm.fetchDriveFiles(); while (true) { delay(30_000); vm.refreshUsage(); vm.checkGoogleConnection() } }
-    LaunchedEffect(vm.isGoogleConnected) { if (vm.isGoogleConnected) vm.fetchDriveFiles() }
+    // Single entry-point fetch lives in the isGoogleConnected effect below.
+    // This loop only re-checks connection + usage; it never lists Drive.
+    LaunchedEffect(Unit) { vm.checkGoogleConnection(); while (true) { delay(30_000); vm.refreshUsage(); vm.checkGoogleConnection() } }
+    LaunchedEffect(vm.isGoogleConnected) { if (vm.isGoogleConnected && vm.driveFiles.isEmpty()) vm.fetchDriveFiles() }
 
     DraftLockTheme {
         Box(Modifier.fillMaxSize().background(DraftLockColors.bg)) {
@@ -757,15 +777,15 @@ fun DraftLockApp(vm: DraftLockViewModel) {
                                 Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(0.dp)).background(if (selected) Color(0xFF1A1A1E) else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }.padding(1.dp), contentAlignment = Alignment.Center) {
                                     if (selected) Box(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter).background(DraftLockColors.accent))
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Icon(painterResource(item.iconRes), null, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                                        Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 9.sp, letterSpacing = 0.8.sp)
+                                        Icon(painterResource(item.iconRes), item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
+                                        Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.8.sp)
                                     }
                                 }
                             }
                             // Center WRITE — inverted lime block, sharp 0, spans wider, brutalist special
                             Box(Modifier.weight(1.6f).fillMaxHeight().padding(horizontal = 4.dp).clip(RoundedCornerShape(0.dp)).background(DraftLockColors.accent).clickable { haptics.performHapticFeedback(HapticFeedbackType.LongPress); screen = Screen.WRITE }, contentAlignment = Alignment.Center) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                                    Icon(painterResource(R.drawable.ic_write), "Write", tint = Color.Black, modifier = Modifier.size(18.dp))
                                     Text("WRITE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 1.0.sp)
                                     Text("→", color = Color.Black, fontWeight = FontWeight.Black)
                                 }
@@ -775,8 +795,8 @@ fun DraftLockApp(vm: DraftLockViewModel) {
                                 Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(0.dp)).background(if (selected) Color(0xFF1A1A1E) else Color.Transparent).clickable { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); screen = item }.padding(1.dp), contentAlignment = Alignment.Center) {
                                     if (selected) Box(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter).background(DraftLockColors.accent))
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Icon(painterResource(item.iconRes), null, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
-                                        Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 9.sp, letterSpacing = 0.8.sp)
+                                        Icon(painterResource(item.iconRes), item.label, tint = if (selected) DraftLockColors.accent else DraftLockColors.muted, modifier = Modifier.size(20.dp))
+                                        Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else DraftLockColors.muted, fontWeight = if (selected) FontWeight.Black else FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.8.sp)
                                     }
                                 }
                             }
@@ -849,9 +869,9 @@ fun HomeScreen(vm: DraftLockViewModel, words: Int, quota: Int, requirements: Lis
                     Text(if (isUnlocked) "GOAL MET" else "KEEP INKING", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if (isUnlocked) DraftLockColors.accent else DraftLockColors.muted, letterSpacing = 0.8.sp)
                 }
                 // Inline WRITE — sharp 0, inverted, not separate full card
-                Box(Modifier.fillMaxWidth().height(44.dp).background(DraftLockColors.accent).clickable { onWrite() }, contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(DraftLockColors.accent).clickable { onWrite() }, contentAlignment = Alignment.Center) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                        Icon(painterResource(R.drawable.ic_write), "Write", tint = Color.Black, modifier = Modifier.size(18.dp))
                         Text(if (isUnlocked) "CONTINUE WRITING — VAULT OPEN" else "WRITE TO UNLOCK →", fontWeight = FontWeight.Black, color = Color.Black, letterSpacing = 0.6.sp, fontSize = 12.sp)
                     }
                 }
@@ -1056,7 +1076,7 @@ fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, do
                 Box(Modifier.size(32.dp).background(DraftLockColors.accent), contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_write), null, tint = Color.Black, modifier = Modifier.size(16.dp)) }
                 Column(Modifier.weight(1f)) {
                     Text(documentName.ifBlank { "Untitled Vault" }, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 0.6.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
-                    Text("$words / $quota  •  ${(progress*100).toInt()}%  •  ${if(progress>=1f) "VAULT OPEN" else "SEALED"} • ${vm.syncStatus.take(22)}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 10.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
+                    Text("$words / $quota  •  ${(progress*100).toInt()}%  •  ${if(progress>=1f) "VAULT OPEN" else "SEALED"} • ${vm.syncStatus}", style = MaterialTheme.typography.labelSmall, color = DraftLockColors.muted, fontSize = 11.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
                 }
                 Box(Modifier.background(if (progress>=1f) DraftLockColors.accent else Color(0xFF1A1A1E)).padding(horizontal=8.dp, vertical=4.dp)) { Text(if(progress>=1f) "GOAL" else "INK", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = if(progress>=1f) Color.Black else DraftLockColors.muted, fontSize=10.sp) }
             }
@@ -1067,23 +1087,23 @@ fun WriteScreen(vm: DraftLockViewModel, text: String, words: Int, quota: Int, do
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, label = { Text("DOC NAME", style = MaterialTheme.typography.labelSmall, letterSpacing=0.8.sp) }, placeholder = { Text("e.g. Chapter 3 — The Vault", color=DraftLockColors.muted, fontSize=12.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(0.dp), colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = DraftLockColors.accent, unfocusedBorderColor = DraftLockColors.line, focusedContainerColor = Color(0xFF111114), unfocusedContainerColor = Color(0xFF111114), focusedTextColor = DraftLockColors.ink, unfocusedTextColor = DraftLockColors.ink, cursorColor = DraftLockColors.accent))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.weight(1f).height(40.dp).background(DraftLockColors.bg).clickable { if (vm.isGoogleConfigured) vm.startGooglePicker(ctx) else vm.startGoogleAuth(ctx) }.padding(horizontal=10.dp), contentAlignment = Alignment.CenterStart) {
+                    Box(Modifier.weight(1f).heightIn(min = 48.dp).background(DraftLockColors.bg).clickable { if (vm.isGoogleConfigured) vm.startGooglePicker(ctx) else vm.startGoogleAuth(ctx) }.padding(horizontal=10.dp), contentAlignment = Alignment.CenterStart) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(painterResource(R.drawable.ic_docs), null, tint=DraftLockColors.accent, modifier=Modifier.size(14.dp))
-                            Text(if (vm.isGoogleConnected) "PICK GOOGLE DOC" else "CONNECT GOOGLE + PICK DOC", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=if(vm.isGoogleConnected) DraftLockColors.ink else DraftLockColors.muted, fontSize=10.sp, letterSpacing=0.6.sp)
+                            Icon(painterResource(R.drawable.ic_docs), "Pick Google Doc", tint=DraftLockColors.accent, modifier=Modifier.size(14.dp))
+                            Text(if (vm.isGoogleConnected) "PICK GOOGLE DOC" else "CONNECT GOOGLE + PICK DOC", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=if(vm.isGoogleConnected) DraftLockColors.ink else DraftLockColors.muted, fontSize=11.sp, letterSpacing=0.6.sp)
                         }
                     }
-                    Box(Modifier.weight(1f).height(40.dp).background(DraftLockColors.accent).clickable { vm.setDocumentName(nameInput.ifBlank { "Untitled Vault" }); vm.saveGoogleStatus("Name set: ${nameInput.take(18)}") }, contentAlignment = Alignment.Center) { Text("APPLY NAME", fontWeight=FontWeight.Black, color=Color.Black, fontSize=11.sp, letterSpacing=0.6.sp) }
+                    Box(Modifier.weight(1f).heightIn(min = 48.dp).background(DraftLockColors.accent).clickable { vm.setDocumentName(nameInput.ifBlank { "Untitled Vault" }); vm.saveGoogleStatus("Name set: ${nameInput.take(18)}") }, contentAlignment = Alignment.Center) { Text("APPLY NAME", fontWeight=FontWeight.Black, color=Color.Black, fontSize=12.sp, letterSpacing=0.6.sp) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.weight(1f).height(42.dp).background(if (vm.isSyncing) Color(0xFF1A1A1E) else DraftLockColors.accent).clickable(enabled = !vm.isSyncing) { vm.syncTextToDoc() }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.weight(1f).heightIn(min = 48.dp).background(if (vm.isSyncing) Color(0xFF1A1A1E) else DraftLockColors.accent).clickable(enabled = !vm.isSyncing) { vm.syncTextToDoc() }, contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (vm.isSyncing) androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth=2.dp, color=DraftLockColors.muted) else Icon(painterResource(R.drawable.ic_docs), null, tint=Color.Black, modifier=Modifier.size(14.dp))
-                            Text(if(vm.isSyncing) "SAVING…" else "SAVE TO DOC", fontWeight=FontWeight.Black, color=if(vm.isSyncing) DraftLockColors.muted else Color.Black, fontSize=11.sp)
+                            if (vm.isSyncing) androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth=2.dp, color=DraftLockColors.muted) else Icon(painterResource(R.drawable.ic_docs), "Save to doc", tint=Color.Black, modifier=Modifier.size(14.dp))
+                            Text(if(vm.isSyncing) "SAVING…" else "SAVE TO DOC", fontWeight=FontWeight.Black, color=if(vm.isSyncing) DraftLockColors.muted else Color.Black, fontSize=12.sp)
                         }
                     }
-                    Box(Modifier.weight(1f).height(42.dp).background(DraftLockColors.panelElevated).clickable { vm.saveAsNewDoc(nameInput) }, contentAlignment = Alignment.Center) { Text("SAVE AS NEW", fontWeight=FontWeight.Black, color=DraftLockColors.ink, fontSize=11.sp) }
-                    Box(Modifier.weight(0.7f).height(42.dp).background(Color(0xFF1A1A1E)).clickable { if(vm.googleDocumentId.value.isNotBlank()) vm.loadDocContent(vm.googleDocumentId.value, vm.documentName.value) }, contentAlignment = Alignment.Center) { Text("RELOAD", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=DraftLockColors.muted, fontSize=10.sp) }
+                    Box(Modifier.weight(1f).heightIn(min = 48.dp).background(DraftLockColors.panelElevated).clickable { vm.saveAsNewDoc(nameInput) }, contentAlignment = Alignment.Center) { Text("SAVE AS NEW", fontWeight=FontWeight.Black, color=DraftLockColors.ink, fontSize=12.sp) }
+                    Box(Modifier.weight(0.7f).heightIn(min = 48.dp).background(Color(0xFF1A1A1E)).clickable { if(vm.googleDocumentId.value.isNotBlank()) vm.loadDocContent(vm.googleDocumentId.value, vm.documentName.value) }, contentAlignment = Alignment.Center) { Text("RELOAD", style = MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Black, color=DraftLockColors.muted, fontSize=11.sp) }
                 }
                 if (!vm.isGoogleConnected) Text("Tap PICK GOOGLE DOC to browse your Drive and choose any Google Doc. Local vault saves instantly; Drive saves on SAVE.", style = MaterialTheme.typography.labelSmall, color=DraftLockColors.muted, fontSize=10.sp)
             }

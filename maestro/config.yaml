@@ -1,0 +1,4 @@
+# Maestro config for DraftLock - run on Linux/macOS runner with emulator, not on Android Bionic directly
+# Install JDK17 + Maestro on glibc host: curl -Ls https://get.maestro.mobile.dev | bash
+# Then: maestro test maestro/flows/
+# Compare flows vs Mobbin: https://mobbin.com/browse/mobile (search Onboarding, Library, Focus)

@@ -1,0 +1,16 @@
+appId: com.draftlock.app
+---
+# Sprint + Google Docs Monitor - latest f139fd3 features
+- launchApp
+- assertVisible: "GOOGLE DOC MONITOR"
+- assertVisible: "Configure"
+- tapOn: "Configure"
+- assertVisible: "Google Doc monitor"
+- assertVisible: "Filename starts with"
+- tapOn: "Cancel"
+- assertVisible: "WRITING SPRINT"
+- tapOn: "START WRITING SESSION"
+- assertVisible: "Start a writing session"
+- assertVisible: "SESSION LENGTH"
+- tapOn: "Google Docs"
+- assertVisible: "Search all Google Docs"

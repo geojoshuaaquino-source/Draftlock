@@ -1,0 +1,15 @@
+appId: com.draftlock.app
+---
+# Library: local + Google Docs - tests search + create (Mobbin comparison: search + tabs)
+- launchApp
+- tapOn: "Library"
+- assertVisible: "Library"
+- assertVisible: "On device"
+- tapOn: "Google Docs"
+- assertVisible: "Google Docs"
+- tapOn: "On device"
+- assertVisible: "LOCAL DRAFTS"
+- tapOn: "+ New"
+- inputText: "Maestro Test Draft"
+- tapOn: "Create"
+- assertVisible: "Maestro Test Draft"

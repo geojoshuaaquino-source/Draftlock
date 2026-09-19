@@ -26,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -35,6 +36,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -250,7 +252,7 @@ private fun MockBottomBar(page: MockPage, onPage: (MockPage) -> Unit) {
         MockNav("Home", R.drawable.ic_home, page == MockPage.HOME) { onPage(MockPage.HOME) }
         MockNav("Library", R.drawable.ic_docs, page == MockPage.LIBRARY) { onPage(MockPage.LIBRARY) }
         PressableSurface(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(17.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4D8DFF), Color(0xFF633BFF)))), { onPage(MockPage.EDITOR) }) {
-            Icon(painterResource(R.drawable.ic_write), null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(painterResource(R.drawable.ic_write), "Write", tint = Color.White, modifier = Modifier.size(22.dp))
         }
         MockNav("Focus", R.drawable.ic_lock_closed, page == MockPage.FOCUS) { onPage(MockPage.FOCUS) }
         MockNav("Settings", R.drawable.ic_analytics, page == MockPage.SETTINGS) { onPage(MockPage.SETTINGS) }
@@ -262,7 +264,7 @@ private fun RowScope.MockNav(label: String, icon: Int, selected: Boolean, onClic
     PressableSurface(Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(15.dp)), onClick) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(painterResource(icon), label, tint = if (selected) Color(0xFF6C9FFF) else Color(0xFF637795), modifier = Modifier.size(20.dp))
-            Text(label, color = if (selected) Color.White else Color(0xFF637795), fontSize = 9.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+            Text(label, color = if (selected) Color.White else Color(0xFF637795), fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
         }
     }
 }
@@ -336,9 +338,9 @@ private fun MockHome(
             GlassSurface {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("GOOGLE DOC MONITOR", color = Color(0xFF6E86AA), fontSize = 9.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
+                        Text("GOOGLE DOC MONITOR", color = Color(0xFF9BAFC8), fontSize = 11.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
                         Text(if (vm.monitorEnabledState) "${vm.monitorWords} new words detected" else "Read-only writing monitor", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                        Text(if (vm.monitorPrefixState.isBlank()) "All Google Docs" else "Files starting with \"" + vm.monitorPrefixState + "\"", color = Color(0xFF7F93B3), fontSize = 10.sp)
+                        Text(if (vm.monitorPrefixState.isBlank()) "All Google Docs" else "Files starting with \"" + vm.monitorPrefixState + "\"", color = Color(0xFF7F93B3), fontSize = 11.sp)
                     }
                     if (vm.monitorChecking) {
                         CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp, color = Color(0xFF62D8FF))
@@ -360,14 +362,14 @@ private fun MockHome(
                 LinearProgressIndicator(progress = { monitorProgress }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF62D8FF), trackColor = Color(0x19365A8A))
                 Spacer(Modifier.height(7.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(vm.monitorWords.toString() + " / " + monitorGoal + " words", color = Color(0xFF9BB0D0), fontSize = 10.sp, modifier = Modifier.weight(1f))
+                    Text(vm.monitorWords.toString() + " / " + monitorGoal + " words", color = Color(0xFF9BB0D0), fontSize = 11.sp, modifier = Modifier.weight(1f))
                     if (vm.monitorChecking) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp, color = Color(0xFF62D8FF))
-                            Text("Checking…", color = Color(0xFF62D8FF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text("Checking…", color = Color(0xFF62D8FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     } else {
-                        Text(vm.monitorStatus, color = Color(0xFF7187A9), fontSize = 9.sp)
+                        Text(vm.monitorStatus, color = Color(0xFF9BAFC8), fontSize = 11.sp)
                     }
                 }
                 if (vm.monitorMatchedFiles > 0 || vm.monitorLastChecked > 0L) {
@@ -382,14 +384,14 @@ private fun MockHome(
                             }
                             if (vm.monitorLastAdded > 0) append(" • +${vm.monitorLastAdded} new")
                         },
-                        color = Color(0xFF67DDB5), fontSize = 9.sp, fontWeight = FontWeight.Medium
+                        color = Color(0xFF67DDB5), fontSize = 11.sp, fontWeight = FontWeight.Medium
                     )
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     SmallGlassButton("Configure") { onMonitorConfig() }
                     if (vm.monitorChecking) {
-                        SmallGlassButton("Checking…") { }
+                        SmallGlassButton("Checking…", onClick = {}, enabled = false)
                     } else {
                         SmallGlassButton("Check now") { vm.monitorNow() }
                     }
@@ -622,7 +624,7 @@ private fun SearchField(value: String, placeholderText: String = "Search drafts�
 }
 
 @Composable
-private fun RowScope.Seg(text: String, selected: Boolean, onClick: () -> Unit) { Box(Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFF443DD0) else Color.Transparent).clickable { onClick() }.padding(horizontal = 22.dp, vertical = 9.dp), contentAlignment = Alignment.Center) { Text(text, color = if (selected) Color.White else Color(0xFF7186A8), fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
+private fun RowScope.Seg(text: String, selected: Boolean, onClick: () -> Unit) { Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFF443DD0) else Color.Transparent).clickable(role = Role.Tab, onClick = onClick).padding(horizontal = 22.dp, vertical = 9.dp), contentAlignment = Alignment.Center) { Text(text, color = if (selected) Color.White else Color(0xFF7186A8), fontSize = 12.sp, fontWeight = FontWeight.Bold) } }
 
 @Composable
 private fun MockFocus(vm: DraftLockViewModel, lockedApps: List<LockedApp>, requirements: List<AppRequirement>, onManage: () -> Unit) {
@@ -630,13 +632,14 @@ private fun MockFocus(vm: DraftLockViewModel, lockedApps: List<LockedApp>, requi
     var manage by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("ALL") }
+    var focusMode by remember { mutableStateOf("Pomodoro") }
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
     LaunchedEffect(manage) {
         if (manage) apps = withContext(Dispatchers.IO) { context.packageManager.getInstalledApplications(0).mapNotNull { a -> if (a.packageName == context.packageName) null else { val label = context.packageManager.getApplicationLabel(a).toString(); val icon = try { val d = context.packageManager.getApplicationIcon(a.packageName); Bitmap.createBitmap(72,72,Bitmap.Config.ARGB_8888).also { b -> d.setBounds(0,0,72,72); d.draw(Canvas(b)) } } catch (_: Exception) { null }; InstalledApp(a.packageName,label,icon) } }.sortedBy { it.label.lowercase() } }
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp, 18.dp, 18.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Focus & Locked Apps", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold); Text("Block distractions. Stay in the zone.", color = Color(0xFF8095B7), fontSize = 11.sp) }
-        item { GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_lock_closed), null, tint = Color(0xFF7A9CFF), modifier = Modifier.size(25.dp)); Spacer(Modifier.width(11.dp)); Column(Modifier.weight(1f)) { Text("Focus Mode", color = Color.White, fontWeight = FontWeight.Bold); Text("Unlock conditions remain unchanged.", color = Color(0xFF7086A9), fontSize = 9.sp) }; Switch(checked = true, onCheckedChange = null) } ; Spacer(Modifier.height(12.dp)); Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xA3142542)).padding(4.dp)) { listOf("Pomodoro","Custom","None").forEach { SmallMode(it, it == "Pomodoro") } }; Spacer(Modifier.height(10.dp)); SmallGlassButton("Refresh usage") { vm.refreshUsage() } } }
+        item { GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_lock_closed), null, tint = Color(0xFF7A9CFF), modifier = Modifier.size(25.dp)); Spacer(Modifier.width(11.dp)); Column(Modifier.weight(1f)) { Text("Focus Mode", color = Color.White, fontWeight = FontWeight.Bold); Text("Unlock conditions remain unchanged.", color = Color(0xFF7086A9), fontSize = 9.sp) }; Switch(checked = true, onCheckedChange = null) } ; Spacer(Modifier.height(12.dp)); Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xA3142542)).padding(4.dp)) { listOf("Pomodoro","Custom","None").forEach { SmallMode(it, it == focusMode) { focusMode = it } } }; Spacer(Modifier.height(10.dp)); SmallGlassButton("Refresh usage") { vm.refreshUsage() } } }
         item { GlassSurface { Text("PROTECTION STATUS", color = Color(0xFF7187AA), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(6.dp)); Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(9.dp).clip(CircleShape).background(if (vm.allConditionsComplete()) Color(0xFF5CE2AE) else Color(0xFFFFC76B))); Spacer(Modifier.width(8.dp)); Text(if (vm.allConditionsComplete()) "Requirements complete" else "Apps remain locked", color = Color.White, fontWeight = FontWeight.Bold) } } }
         item { Row(verticalAlignment = Alignment.CenterVertically) { Text("LOCKED APPS", color = Color(0xFF7187AA), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); GradientButton("Manage", Modifier.width(100.dp)) { manage = true } } }
         items(lockedApps) { app -> FocusAppRow(vm, app, requirements.find { it.packageName == app.packageName }) }
@@ -645,7 +648,7 @@ private fun MockFocus(vm: DraftLockViewModel, lockedApps: List<LockedApp>, requi
         item { GradientButton("Manage apps & requirements", Modifier.fillMaxWidth(), onManage) }
         item { TextButton(onClick = { vm.activateEmergencyOverride() }, modifier = Modifier.fillMaxWidth()) { Text("Emergency Override • 15 minutes", color = Color(0xFF78DFFF), fontSize = 11.sp) } }
     }
-    if (manage) Dialog(onDismissRequest = { manage = false }) { Surface(color = Color(0xFF07142A), shape = RoundedCornerShape(24.dp)) { Column(Modifier.fillMaxWidth().padding(18.dp)) { Text("Manage apps", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(10.dp)); OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search apps") }, colors = editorFieldColors()); Row(Modifier.padding(vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf("ALL","BLOCKED","REQUIRED","AVAILABLE").forEach { f -> SmallMode(f, filter == f) } }; LazyColumn(Modifier.heightIn(max = 470.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { items(apps.filter { it.label.contains(query,true) || it.packageName.contains(query,true) }.filter { when(filter) { "BLOCKED" -> vm.isLocked(it.packageName)!=null; "REQUIRED" -> vm.isRequirement(it.packageName)!=null; "AVAILABLE" -> vm.isLocked(it.packageName)==null && vm.isRequirement(it.packageName)==null; else -> true } }) { app -> ManageAppRow(vm, app) } } } } }
+    if (manage) Dialog(onDismissRequest = { manage = false }) { Surface(color = Color(0xFF07142A), shape = RoundedCornerShape(24.dp)) { Column(Modifier.fillMaxWidth().padding(18.dp)) { Text("Manage apps", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(10.dp)); OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search apps") }, colors = editorFieldColors()); Row(Modifier.padding(vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf("ALL","BLOCKED","REQUIRED","AVAILABLE").forEach { f -> SmallMode(f, filter == f) { filter = f } } }; LazyColumn(Modifier.heightIn(max = 470.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { items(apps.filter { it.label.contains(query,true) || it.packageName.contains(query,true) }.filter { when(filter) { "BLOCKED" -> vm.isLocked(it.packageName)!=null; "REQUIRED" -> vm.isRequirement(it.packageName)!=null; "AVAILABLE" -> vm.isLocked(it.packageName)==null && vm.isRequirement(it.packageName)==null; else -> true } }) { app -> ManageAppRow(vm, app) } } } } }
 }
 
 @Composable
@@ -670,7 +673,7 @@ private fun ManageAppRow(vm: DraftLockViewModel, app: InstalledApp) {
 }
 
 @Composable
-private fun SmallMode(text: String, selected: Boolean) { Box(Modifier.clip(RoundedCornerShape(12.dp)).background(if (selected) Color(0xFF4B3DD1) else Color.Transparent).padding(horizontal = 15.dp, vertical = 9.dp), contentAlignment = Alignment.Center) { Text(text, color = if (selected) Color.White else Color(0xFF8195B7), fontSize = 9.sp, fontWeight = FontWeight.Bold) } }
+private fun SmallMode(text: String, selected: Boolean, onClick: () -> Unit = {}) { Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).background(if (selected) Color(0xFF4B3DD1) else Color.Transparent).clickable(role = Role.RadioButton, onClick = onClick).padding(horizontal = 15.dp, vertical = 9.dp), contentAlignment = Alignment.Center) { Text(text, color = if (selected) Color.White else Color(0xFF8195B7), fontSize = 11.sp, fontWeight = FontWeight.Bold) } }
 
 @Composable
 private fun MockEditor(
@@ -988,37 +991,38 @@ private fun GradientButton(text: String, modifier: Modifier = Modifier, onClick:
     Box(
         modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .height(46.dp)
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(Brush.horizontalGradient(listOf(Color(0xFF4E8FFF), Color(0xFF613CFF))))
-            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick),
+            .clickable(interactionSource = interaction, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
 @Composable
-private fun SmallGlassButton(text: String, onClick: () -> Unit) {
+private fun SmallGlassButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.95f else 1f,
+        targetValue = if (pressed && enabled) 0.95f else 1f,
         animationSpec = tween(80),
         label = "smallButtonScale"
     )
     Box(
         Modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .heightIn(min = 40.dp)
+            .alpha(if (enabled) 1f else 0.5f)
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(13.dp))
-            .background(if (pressed) Color(0x264B78B8) else Color(0x152D4D78))
-            .border(1.dp, if (pressed) Color(0x557CB7F0) else Color(0x29466C9B), RoundedCornerShape(13.dp))
-            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
+            .background(if (pressed && enabled) Color(0x264B78B8) else Color(0x152D4D78))
+            .border(1.dp, if (pressed && enabled) Color(0x557CB7F0) else Color(0x29466C9B), RoundedCornerShape(13.dp))
+            .then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = LocalIndication.current, role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = if (pressed) Color.White else Color(0xFFBFD4F2), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+        Text(text, color = if (pressed && enabled) Color.White else Color(0xFFBFD4F2), fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 

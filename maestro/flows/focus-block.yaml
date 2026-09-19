@@ -1,0 +1,13 @@
+appId: com.draftlock.app
+---
+# Focus & Locked Apps - critical for UX (compare vs Mobbin Focus/Blocking patterns)
+- launchApp
+- tapOn: "Focus"
+- assertVisible: "Focus & Locked Apps"
+- assertVisible: "Focus Mode"
+- tapOn: "Manage"
+- assertVisible: "Manage apps"
+- inputText: "Chrome"
+- assertVisible: "Chrome"
+- pressKey: back
+- assertVisible: "LOCKED APPS"
