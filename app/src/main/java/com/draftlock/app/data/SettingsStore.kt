@@ -35,6 +35,7 @@ class SettingsStore(private val context: Context) {
         val monitorWords = intPreferencesKey("monitor_words")
         val monitorDayKey = stringPreferencesKey("monitor_day_key")
         val monitorCounts = stringPreferencesKey("monitor_counts")
+        val monitorMeta = stringPreferencesKey("monitor_meta")
     }
 
     val quota: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.quota] ?: 1000 }
@@ -57,6 +58,7 @@ class SettingsStore(private val context: Context) {
     val monitorWords: Flow<Int> = context.draftLockDataStore.data.map { it[Keys.monitorWords] ?: 0 }
     val monitorDayKey: Flow<String> = context.draftLockDataStore.data.map { it[Keys.monitorDayKey] ?: "" }
     val monitorCounts: Flow<String> = context.draftLockDataStore.data.map { it[Keys.monitorCounts] ?: "{}" }
+    val monitorMeta: Flow<String> = context.draftLockDataStore.data.map { it[Keys.monitorMeta] ?: "{}" }
 
     suspend fun setQuota(value: Int) = context.draftLockDataStore.edit { it[Keys.quota] = value.coerceAtLeast(1) }
     suspend fun setResetMinutes(value: Int) = context.draftLockDataStore.edit { it[Keys.resetMinutes] = value.coerceIn(0, 1439) }
@@ -83,6 +85,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setMonitorPrefix(value: String) = context.draftLockDataStore.edit { it[Keys.monitorPrefix] = value }
     suspend fun setMonitorWords(value: Int, key: String) = context.draftLockDataStore.edit { it[Keys.monitorWords] = value.coerceAtLeast(0); it[Keys.monitorDayKey] = key }
     suspend fun setMonitorCounts(value: String) = context.draftLockDataStore.edit { it[Keys.monitorCounts] = value }
+    suspend fun setMonitorMeta(value: String) = context.draftLockDataStore.edit { it[Keys.monitorMeta] = value }
 
     suspend fun setTodayWords(value: Int, key: String) {
         context.draftLockDataStore.edit {

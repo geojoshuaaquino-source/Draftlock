@@ -4,18 +4,16 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.draftlock.app.data.SettingsStore
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.flow.first
-import org.json.JSONObject
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 /**
  * Reconciles Google Docs writing progress independently of the DraftLock UI.
  *
- * WorkManager may run this approximately every 15 minutes or later because Android
- * controls background execution. The important part is that the worker compares the
- * current saved document against the last persisted snapshot, so words added while
- * DraftLock's process was dead are recovered on the next successful check.
+ * Runs ~every 15 minutes (Android controls exact timing). Uses
+ * [GoogleDocsMonitorSync] so each run is 1 Drive-list + only changed docs,
+ * avoiding the old N-Docs-gets-per-run slowness and 429 rate limits.
  */
 class GoogleDocsMonitorWorker(
     appContext: Context,
@@ -29,42 +27,37 @@ class GoogleDocsMonitorWorker(
         if (!store.monitorEnabled.first()) return Result.success()
 
         val prefix = store.monitorPrefix.first().trim()
-        val counts = runCatching { JSONObject(store.monitorCounts.first()) }.getOrElse { JSONObject() }
+        val countsStr = store.monitorCounts.first()
+        val metaStr = store.monitorMeta.first()
         val manager = GoogleOAuthManager(applicationContext)
 
-        val token = getFreshToken(manager) ?: return Result.retry()
+        val token = getFreshToken(manager)
+            ?: return Result.success() // auth dead -> don't tight-retry; UI explains reconnect
 
         return try {
-            val files = docsRepo.findFiles(token, "")
-                .filter { prefix.isBlank() || it.name.startsWith(prefix, ignoreCase = true) }
-
-            var added = 0
-            for (file in files) {
-                val wordsNow = countWords(docsRepo.getDocumentText(token, file.id))
-                val previous = counts.optInt(file.id, -1)
-
-                if (previous < 0) {
-                    // First observation: establish a baseline, never count existing text.
-                    counts.put(file.id, wordsNow)
-                } else {
-                    if (wordsNow > previous) added += wordsNow - previous
-                    // Store the latest snapshot even when words were deleted.
-                    counts.put(file.id, wordsNow)
-                }
-            }
+            val result = GoogleDocsMonitorSync.sync(
+                token = token,
+                prefix = prefix,
+                countsJsonStr = countsStr,
+                metaJsonStr = metaStr,
+                docsRepo = docsRepo
+            )
 
             val resetMinutes = store.resetMinutes.first()
             val dayKey = UsageTracker.periodStartMillis(resetMinutes).toString()
             val storedKey = store.monitorDayKey.first()
             val currentWords = if (storedKey == dayKey) store.monitorWords.first() else 0
 
-            store.setMonitorWords(currentWords + added, dayKey)
-            store.setMonitorCounts(counts.toString())
+            store.setMonitorWords(currentWords + result.added, dayKey)
+            store.setMonitorCounts(result.countsJson)
+            store.setMonitorMeta(result.metaJson)
             DraftLockWidget.updateAll(applicationContext)
 
             Result.success()
-        } catch (_: Exception) {
-            Result.retry()
+        } catch (e: Exception) {
+            // Auth/config errors never heal by retrying -> stop retry loop.
+            // Network/throttle/5xx -> retry with WorkManager backoff.
+            if (GoogleDocsMonitorSync.isRetryable(e)) Result.retry() else Result.success()
         }
     }
 
@@ -79,7 +72,4 @@ class GoogleDocsMonitorWorker(
                 }
             )
         }
-
-    private fun countWords(text: String): Int =
-        text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
 }

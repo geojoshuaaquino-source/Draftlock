@@ -99,11 +99,18 @@ class GoogleDocsRepository {
         return sb.toString().trimEnd('\n')
     }
 
-    fun findFiles(accessToken: String, nameQuery: String): List<RemoteFile> {
+    fun findFiles(accessToken: String, nameQuery: String, prefixPrefilter: String = ""): List<RemoteFile> {
         // Fetch the complete Google Docs index first, then filter locally.
-        // Drive's "name contains" query is prefix-oriented, so using it server-side
-        // would miss titles where the search term appears later in the name.
-        val baseQuery = "trashed = false and mimeType = '$DOC_MIME'"
+        // When a prefix filter is supplied (monitor path), also prefilter server-side
+        // with "name contains" to shrink the list before the per-doc Docs fetches.
+        // "contains" is a superset of startsWith, so the client-side startsWith
+        // check afterwards stays exact.
+        var baseQuery = "trashed = false and mimeType = '$DOC_MIME'"
+        val pre = prefixPrefilter.trim()
+        if (pre.isNotBlank()) {
+            val escaped = pre.replace("\\", "\\\\").replace("'", "\\'")
+            baseQuery += " and name contains '$escaped'"
+        }
         val encodedQuery = URLEncoder.encode(baseQuery, StandardCharsets.UTF_8.toString())
         val fields = URLEncoder.encode(
             "nextPageToken,files(id,name,modifiedTime,size,parents)",

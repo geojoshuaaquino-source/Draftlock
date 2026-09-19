@@ -98,7 +98,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 private enum class Screen(val label: String, val iconRes: Int) {
     HOME("Home", R.drawable.ic_home),
@@ -269,8 +268,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         }
         viewModelScope.launch {
             while (true) {
-                if (monitorEnabledState && isGoogleConnected && !monitorChecking) monitorNow()
-                delay(10_000)
+                // Auto-check at most once a minute. Each check is now 1 list call
+                // plus only changed docs (modifiedTime skip), so this stays fast
+                // and avoids Google 429 rate-limit errors.
+                if (monitorEnabledState && isGoogleConnected && !monitorChecking) monitorNow(manual = false)
+                delay(60_000)
             }
         }
         viewModelScope.launch {
@@ -361,18 +363,23 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
             }
         }
     }
-    fun monitorNow(resetBaseline: Boolean = false) {
+    fun monitorNow(resetBaseline: Boolean = false, manual: Boolean = true) {
         if (monitorChecking) return
         if (!isGoogleConnected) {
             monitorStatus = "Connect Google first to monitor Docs"
             return
         }
+        // Throttle background auto-checks; manual "Check now" always runs.
+        if (!manual && !resetBaseline && monitorLastChecked > 0L &&
+            System.currentTimeMillis() - monitorLastChecked < 60_000L
+        ) return
         monitorChecking = true
         monitorStatus = "Checking matching Google Docs…"
         val prefix = monitorPrefixState.trim()
         viewModelScope.launch {
             try {
-                val counts = JSONObject(store.monitorCounts.first())
+                val countsStr = store.monitorCounts.first()
+                val metaStr = store.monitorMeta.first()
                 val manager = GoogleOAuthManager(getApplication())
                 manager.withFreshToken(onToken = { token ->
                     if (token == null) {
@@ -382,57 +389,56 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                     }
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            val files = docsRepo.findFiles(token, "")
-                                .filter { prefix.isBlank() || it.name.startsWith(prefix, ignoreCase = true) }
-                            var added = 0
-                            for (file in files) {
-                                val wordsNow = countWords(docsRepo.getDocumentText(token, file.id))
-                                val previous = counts.optInt(file.id, -1)
-                                if (previous < 0 || resetBaseline) {
-                                    counts.put(file.id, wordsNow)
-                                } else if (wordsNow > previous) {
-                                    added += wordsNow - previous
-                                    counts.put(file.id, wordsNow)
-                                } else {
-                                    counts.put(file.id, wordsNow)
-                                }
-                            }
+                            val result = GoogleDocsMonitorSync.sync(
+                                token = token,
+                                prefix = prefix,
+                                countsJsonStr = countsStr,
+                                metaJsonStr = metaStr,
+                                docsRepo = docsRepo,
+                                resetBaseline = resetBaseline
+                            )
                             val key = monitorDayKey
                             withContext(Dispatchers.Main) {
                                 if (store.monitorDayKey.first() != key) monitorWords = 0
-                                monitorWords += added
+                                monitorWords += result.added
                                 viewModelScope.launch {
                                     store.setMonitorWords(monitorWords, key)
-                                    store.setMonitorCounts(counts.toString())
+                                    store.setMonitorCounts(result.countsJson)
+                                    store.setMonitorMeta(result.metaJson)
                                 }
-                                monitorMatchedFiles = files.size
+                                monitorMatchedFiles = result.matched
                                 monitorLastChecked = System.currentTimeMillis()
-                                monitorLastAdded = added
-                                monitorStatus = if (files.isEmpty()) {
+                                monitorLastAdded = result.added
+                                monitorStatus = if (result.matched == 0) {
                                     if (prefix.isBlank()) "No Google Docs found — write one first"
                                     else "No Docs start with \"$prefix\""
-                                } else if (added > 0) {
-                                    "+$added new words • Watching ${files.size} Doc" + if (files.size == 1) "" else "s"
+                                } else if (result.added > 0) {
+                                    "+${result.added} new words • Watching ${result.matched} Doc" + if (result.matched == 1) "" else "s"
+                                } else if (result.fetched == 0 && result.skipped > 0) {
+                                    "Watching ${result.matched} Doc" + if (result.matched == 1) "" else "s" + " • no changes"
                                 } else {
-                                    "Watching " + files.size + " matching Doc" + if (files.size == 1) "" else "s" + " • up to date"
+                                    "Watching " + result.matched + " matching Doc" + if (result.matched == 1) "" else "s" + " • up to date"
+                                }
+                                if (result.truncated) {
+                                    monitorStatus += " (top ${GoogleDocsMonitorSync.MAX_DOCS})"
                                 }
                                 monitorChecking = false
                                 DraftLockWidget.updateAll(getApplication())
                             }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
-                                monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
+                                monitorStatus = GoogleDocsMonitorSync.friendlyError(e)
                                 monitorChecking = false
                                 DraftLockWidget.updateAll(getApplication())
                             }
                         }
                     }
                 }, onError = {
-                    monitorStatus = it
+                    monitorStatus = "Google authorization required — reconnect"
                     monitorChecking = false
                 })
             } catch (e: Exception) {
-                monitorStatus = "Monitor error: " + (e.message ?: "unknown error")
+                monitorStatus = GoogleDocsMonitorSync.friendlyError(e)
                 monitorChecking = false
                 DraftLockWidget.updateAll(getApplication())
             }
