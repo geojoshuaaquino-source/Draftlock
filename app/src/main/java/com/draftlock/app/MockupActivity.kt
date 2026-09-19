@@ -1002,7 +1002,7 @@ private fun GradientButton(text: String, modifier: Modifier = Modifier, onClick:
 }
 
 @Composable
-private fun SmallGlassButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+private fun SmallGlassButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
