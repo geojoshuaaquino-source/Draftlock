@@ -458,7 +458,7 @@ private fun MockHome(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    SmallGlassButton("Open", onOpen)
+                    SmallGlassButton("Open", onClick = onOpen)
                 }
             }
         }
@@ -480,7 +480,7 @@ private fun MockHome(
                         Text("Focus & Locked Apps", color = Color.White, fontWeight = FontWeight.Bold)
                         Text("$locked apps protected", color = Color(0xFF7F92B2), fontSize = 10.sp)
                     }
-                    SmallGlassButton("Open", onFocus)
+                    SmallGlassButton("Open", onClick = onFocus)
                 }
             }
         }
@@ -692,7 +692,7 @@ private fun MockEditor(
 
     Column(Modifier.fillMaxSize().background(Color(0xFF020817)).windowInsetsPadding(WindowInsets.statusBars).imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            SmallGlassButton("‹ Library", onLibrary)
+            SmallGlassButton("‹ Library", onClick = onLibrary)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(title.ifBlank { "Untitled draft" }, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1002,7 +1002,7 @@ private fun GradientButton(text: String, modifier: Modifier = Modifier, onClick:
 }
 
 @Composable
-private fun SmallGlassButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
+private fun SmallGlassButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
