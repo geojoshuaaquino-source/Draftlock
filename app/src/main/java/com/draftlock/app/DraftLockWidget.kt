@@ -72,7 +72,7 @@ class DraftLockWidget : AppWidgetProvider() {
 
                     // MainActivity is the single real entry point (MockupActivity
                     // is a design prototype, not the launcher).
-                    val launch = Intent(appContext, MainActivity::class.java)
+                    val launch = Intent(appContext, MockupActivity::class.java)
                     val pending = PendingIntent.getActivity(
                         appContext,
                         8101,
