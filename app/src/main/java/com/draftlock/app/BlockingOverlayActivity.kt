@@ -34,7 +34,7 @@ class BlockingOverlayActivity : ComponentActivity() {
                     // MainActivity is the real app entry (MockupActivity is a
                     // design prototype that also claims LAUNCHER). Opening the
                     // prototype here stranded users outside their vault.
-                    startActivity(Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) })
+                    startActivity(Intent(this, MockupActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) })
                     finish()
                 }
             }
