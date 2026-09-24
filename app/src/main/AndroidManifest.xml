@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
@@ -41,14 +42,19 @@
             android:launchMode="standard"
             android:theme="@style/Theme.DraftLock" />
 
+        <!-- The mockup is now the real app entry point. -->
         <activity
-            android:name=".MainActivity"
+            android:name=".MockupActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
 
         <receiver
             android:name=".DraftLockWidget"
@@ -61,11 +67,14 @@
                 android:resource="@xml/draftlock_widget_info" />
         </receiver>
 
-        <!-- Prototype screen kept for design reference; NOT the launcher.
-             MainActivity is the single real entry point. -->
-        <activity
-            android:name=".MockupActivity"
-            android:exported="false" />
+        <service
+            android:name=".FloatingMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="user-visible floating writing progress monitor" />
+        </service>
 
         <activity
             android:name=".PrototypeActivity"
