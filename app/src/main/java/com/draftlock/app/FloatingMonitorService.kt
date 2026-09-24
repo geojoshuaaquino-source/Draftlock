@@ -221,29 +221,25 @@ class FloatingMonitorService : Service() {
         val store = SettingsStore(applicationContext)
 
         updateJob = scope.launch {
-            combine(
-                store.todayWords,
-                store.monitorWords,
-                store.todayKey,
-                store.monitorDayKey,
-                store.quota,
-                store.resetMinutes
-            ) { typed, monitored, todayKey, monitorKey, quota, reset ->
+            while (true) {
+                val typed = store.todayWords.first()
+                val monitored = store.monitorWords.first()
+                val todayKey = store.todayKey.first()
+                val monitorKey = store.monitorDayKey.first()
+                val quota = store.quota.first()
+                val reset = store.resetMinutes.first()
                 val dayKey = UsageTracker.periodStartMillis(reset).toString()
                 val effective = if (todayKey == dayKey) {
                     typed + if (monitorKey == dayKey) monitored else 0
                 } else {
                     0
                 }
-                Pair(effective.coerceAtLeast(0), quota)
-            }.collect { pair ->
-                val words = pair.first
-                val quota = pair.second
+                val words = effective.coerceAtLeast(0)
                 bubble?.text = words.toString() + "w"
                 wordsText?.text = words.toString() + " / " + quota + " words"
+                delay(500)
             }
         }
-
         timerJob = scope.launch {
             while (true) {
                 val endAt = store.sprintEndAt.first()
