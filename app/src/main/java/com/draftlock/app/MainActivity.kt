@@ -234,6 +234,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     val sprintMinutes = store.sprintMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 25)
     val sprintStartedAt = store.sprintStartedAt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
     val sprintEndAt = store.sprintEndAt.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+    val floatingOverlay = store.floatingOverlay.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     var sprintRemainingSeconds by mutableStateOf(0L)
     var sprintRunning by mutableStateOf(false)
     var selectedLocalDocId by mutableStateOf<Long?>(null)
@@ -382,6 +383,10 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     fun setResetMinutes(value: Int) = viewModelScope.launch { store.setResetMinutes(value); val key = UsageTracker.periodStartMillis(value).toString(); if (store.todayKey.first() != key) store.setTodayWords(0, key); refreshUsage() }
     fun setLogic(value: String) = viewModelScope.launch { store.setLogic(value); applyBlocking() }
     fun setSprintMinutes(value: Int) = viewModelScope.launch { store.setSprintMinutes(value) }
+    fun setFloatingOverlay(value: Boolean) = viewModelScope.launch {
+        store.setFloatingOverlay(value)
+        if (value) FloatingMonitorService.start(getApplication()) else FloatingMonitorService.stop(getApplication())
+    }
     fun updateMonitorPrefix(value: String) {
         monitorPrefixState = value.trim()
         viewModelScope.launch { store.setMonitorPrefix(monitorPrefixState) }
