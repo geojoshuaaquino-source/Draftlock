@@ -2,6 +2,7 @@ package com.draftlock.app
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.provider.Settings
@@ -982,7 +983,7 @@ private fun SprintPickerDialog(
 @Composable
 private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {
     val context = LocalContext.current
-    val quota by vm.quota.collectAsStateWithLifecycle(); val reset by vm.resetMinutes.collectAsStateWithLifecycle(); val logic by vm.logic.collectAsStateWithLifecycle(); val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
+    val quota by vm.quota.collectAsStateWithLifecycle(); val reset by vm.resetMinutes.collectAsStateWithLifecycle(); val logic by vm.logic.collectAsStateWithLifecycle(); val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle(); val floatingOverlay by vm.floatingOverlay.collectAsStateWithLifecycle()
     var resetText by remember(reset) { mutableStateOf(reset.toString()) }
     var quotaText by remember(quota) { mutableStateOf(quota.toString()) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp,18.dp,18.dp,28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -990,7 +991,7 @@ private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {
         item { GlassSurface { SettingTextField("Daily word quota", quotaText) { quotaText = it.filter(Char::isDigit) }; GradientButton("Save quota", Modifier.fillMaxWidth()) { vm.setQuota(quotaText.toIntOrNull() ?: quota) } } }
         item { GlassSurface { SettingTextField("Reset minutes after period start", resetText) { resetText = it.filter(Char::isDigit) }; GradientButton("Save reset", Modifier.fillMaxWidth()) { vm.setResetMinutes(resetText.toIntOrNull()?.coerceIn(0,1439) ?: reset) } } }
         item { GlassSurface { SettingRow("Unlock logic", logic) { Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { SmallGlassButton("AND") { vm.setLogic("AND") }; SmallGlassButton("OR") { vm.setLogic("OR") } } }; Spacer(Modifier.height(8.dp)); SettingRow("Google auto-save", if (autoSave) "Enabled" else "Disabled") { Switch(autoSave, vm::setGoogleAutoSave) } } }
-        item { GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color(0xFF6EDCFF) else Color.White, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("Google Drive", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.syncStatus, color = Color(0xFF7489AA), fontSize = 9.sp) }; if (vm.isGoogleConnected) SmallGlassButton("Disconnect") { com.draftlock.app.GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() } else GradientButton("Connect", Modifier.width(92.dp)) { vm.startGoogleAuth(context) } } } }
+        item { GlassSurface { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_google), null, tint = if (vm.isGoogleConnected) Color(0xFF6EDCFF) else Color.White, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("Google Drive", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.syncStatus, color = Color(0xFF7489AA), fontSize = 9.sp) }; if (vm.isGoogleConnected) SmallGlassButton("Disconnect") { com.draftlock.app.GoogleOAuthManager(context).disconnect(); vm.checkGoogleConnection() } else GradientButton("Connect", Modifier.width(92.dp)) { vm.startGoogleAuth(context) } } } }\n        item { GlassSurface { SettingRow("Floating writing monitor", if (floatingOverlay) "Count + sprint timer over other apps" else "Off") { Switch(checked = floatingOverlay, onCheckedChange = { enabled ->\n            if (enabled && !Settings.canDrawOverlays(context)) {\n                context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + context.packageName)))\n            } else {\n                vm.setFloatingOverlay(enabled)\n            }\n        }) }; Spacer(Modifier.height(6.dp)); Text("Messenger-style bubble. Tap it to expand the live word count and sprint timer.", color = Color(0xFF7489AA), fontSize = 9.sp) } }
         item { GlassSurface { Text("Blocking & access", color = Color.White, fontWeight = FontWeight.Bold); Text(vm.blockingDiagnostics, color = if (vm.blockingAvailable) Color(0xFF6DE0B4) else Color(0xFFFF789A), fontSize = 9.sp); Spacer(Modifier.height(8.dp)); Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { SmallGlassButton("Accessibility") { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }; SmallGlassButton("Usage access") { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } } } }
         item { GradientButton("Focus & locked apps", Modifier.fillMaxWidth(), onApps) }
         item { TextButton(onClick = { vm.activateEmergencyOverride() }, modifier = Modifier.fillMaxWidth()) { Text("Emergency override • 15 minutes", color = Color(0xFF78DFFF), fontSize = 11.sp) } }
