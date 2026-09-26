@@ -94,6 +94,9 @@ class SettingsStore(private val context: Context) {
     suspend fun ensureCurrentDay(dayKey: String) {
         val currentKey = todayKey.first()
         val currentMonitorKey = monitorDayKey.first()
+
+        if (currentKey == dayKey && currentMonitorKey == dayKey) return
+
         if (currentKey != dayKey && currentKey.isNotBlank()) {
             // Preserve the finished day before switching keys.
             recordCurrentDay()
@@ -106,7 +109,7 @@ class SettingsStore(private val context: Context) {
                 it[Keys.overrideUsed] = false
                 it[Keys.overrideUntil] = 0L
             }
-            if (currentMonitorKey != dayKey || (it[Keys.monitorDayKey] ?: "") != dayKey) {
+            if ((it[Keys.monitorDayKey] ?: "") != dayKey) {
                 it[Keys.monitorWords] = 0
                 it[Keys.monitorDayKey] = dayKey
             }
