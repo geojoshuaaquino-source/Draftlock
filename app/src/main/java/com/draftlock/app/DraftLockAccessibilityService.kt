@@ -6,20 +6,52 @@ import android.view.accessibility.AccessibilityEvent
 import com.draftlock.app.data.DraftLockDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class DraftLockAccessibilityService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val reconcileMutex = Mutex()
+    private val coordinator by lazy { BlockingCoordinator(applicationContext) }
+    private var periodicJob: Job? = null
     private var lastPkg: String? = null
     private var lastTriggerMs: Long = 0
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+
+        // Accessibility is the event-driven enforcement path and is much less
+        // affected by WorkManager/Doze delays. Periodically reconcile too so a
+        // midnight rollover or a changed quota is enforced even without a new
+        // window event.
+        periodicJob?.cancel()
+        periodicJob = scope.launch {
+            while (isActive) {
+                try {
+                    reconcileMutex.withLock {
+                        coordinator.reconcile()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("DraftLock", "Accessibility reconcile failed", e)
+                }
+                delay(30_000L)
+            }
+        }
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
-        // throttle 2s per pkg
+
+        // Avoid stacking multiple blocking activities for the same app.
         if (pkg == lastPkg && System.currentTimeMillis() - lastTriggerMs < 2000) return
         lastPkg = pkg
         checkAndBlock(pkg)
@@ -28,57 +60,38 @@ class DraftLockAccessibilityService : AccessibilityService() {
     private fun checkAndBlock(foregroundPkg: String) {
         scope.launch {
             try {
-                val app = application
-                val db = DraftLockDatabase.get(app)
-                val store = com.draftlock.app.data.SettingsStore(app)
+                val db = DraftLockDatabase.get(applicationContext)
                 val locked = db.dao().getLockedAppSync(foregroundPkg) ?: return@launch
                 if (!locked.enabled) return@launch
-                if (System.currentTimeMillis() < store.overrideUntil.first()) return@launch
-                // Full unlock mirror of DraftLockViewModel.allConditionsComplete():
-                // writing (typed + same-day monitored) combined with per-app
-                // UsageStats requirements via AND/OR logic. The old code only
-                // checked the writing quota, so OR-logic users were blocked
-                // even after meeting an app-time requirement, and AND-logic
-                // users could slip through on writing alone.
-                val resetMinutes = store.resetMinutes.first()
-                val dayKey = UsageTracker.periodStartMillis(resetMinutes).toString()
-                val words = store.todayWords.first()
-                val quota = store.quota.first()
-                val monitored = if (store.monitorDayKey.first() == dayKey) store.monitorWords.first() else 0
-                val writingDone = (words + monitored) >= quota
-                val logic = try { store.logic.first() } catch (_: Exception) { "AND" }
-                val requirements = try { db.dao().observeRequirements().first() } catch (_: Exception) { emptyList() }
-                val enabled = requirements.filter { it.enabled }
-                val unlocked = if (enabled.isEmpty()) {
-                    writingDone
-                } else {
-                    val usage = UsageTracker(app)
-                    val start = UsageTracker.periodStartMillis(resetMinutes)
-                    val appDone = if (!usage.hasUsageAccess()) {
-                        // Without Usage Access we can't verify app-time; fail
-                        // closed on the writing goal only for AND, open for OR
-                        // only when writing is done.
-                        enabled.map { false }
-                    } else {
-                        enabled.map { req ->
-                            usage.minutesForPackage(req.packageName, start) >= req.requiredMinutes
-                        }
-                    }
-                    if (logic == "OR") writingDone || appDone.any { it }
-                    else writingDone && appDone.all { it }
+
+                val decision = reconcileMutex.withLock {
+                    // Evaluate (including day rollover) before showing the overlay.
+                    coordinator.evaluate()
                 }
-                if (unlocked) return@launch
-                // need to ensure app is indeed blocked – show overlay
+                if (decision.shouldUnlock) return@launch
+
                 lastTriggerMs = System.currentTimeMillis()
-                val i = Intent(app, BlockingOverlayActivity::class.java).apply {
+                val i = Intent(applicationContext, BlockingOverlayActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     putExtra("blocked_pkg", foregroundPkg)
                     putExtra("blocked_label", locked.displayName)
                 }
-                app.startActivity(i)
-            } catch (_: Exception) {}
+                applicationContext.startActivity(i)
+            } catch (e: Exception) {
+                android.util.Log.e(
+                    "DraftLock",
+                    "Accessibility blocking check failed for $foregroundPkg",
+                    e
+                )
+            }
         }
     }
 
     override fun onInterrupt() {}
+
+    override fun onDestroy() {
+        periodicJob?.cancel()
+        scope.cancel()
+        super.onDestroy()
+    }
 }
