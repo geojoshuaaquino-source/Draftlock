@@ -45,10 +45,15 @@ class FloatingMonitorService : Service() {
 
         fun start(context: Context) {
             if (!Settings.canDrawOverlays(context)) return
-            androidx.core.content.ContextCompat.startForegroundService(
-                context,
-                Intent(context, FloatingMonitorService::class.java)
-            )
+            try {
+                androidx.core.content.ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, FloatingMonitorService::class.java)
+                )
+            } catch (_: RuntimeException) {
+                // Do not take down the app if the device rejects the FGS start.
+                // Android can reject background FGS starts or OEM-specific service launches.
+            }
         }
 
         fun stop(context: Context) {
@@ -73,26 +78,31 @@ class FloatingMonitorService : Service() {
             return
         }
 
-        createNotificationChannel()
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(com.draftlock.app.R.drawable.ic_launcher)
-            .setContentTitle("DraftLock monitor")
-            .setContentText("Floating word count and sprint timer are active")
-            .setOngoing(true)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .build()
+        try {
+            createNotificationChannel()
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(com.draftlock.app.R.drawable.ic_launcher)
+                .setContentTitle("DraftLock monitor")
+                .setContentText("Floating word count and sprint timer are active")
+                .setOngoing(true)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .build()
 
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            notification,
-            if (Build.VERSION.SDK_INT >= 34)
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            else 0
-        )
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                notification,
+                if (Build.VERSION.SDK_INT >= 34)
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                else 0
+            )
 
-        showOverlay()
-        observeStore()
+            showOverlay()
+            observeStore()
+        } catch (_: RuntimeException) {
+            // A rejected FGS or overlay window must fail closed, not crash DraftLock.
+            stopSelf()
+        }
     }
 
     private fun showOverlay() {
@@ -169,7 +179,14 @@ class FloatingMonitorService : Service() {
         }
 
         overlayView = root
-        windowManager?.addView(root, lp)
+        try {
+            windowManager?.addView(root, lp)
+        } catch (_: RuntimeException) {
+            overlayView = null
+            windowManager = null
+            stopSelf()
+            return
+        }
 
         var downX = 0f
         var downY = 0f
