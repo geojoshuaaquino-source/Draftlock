@@ -1,16 +1,18 @@
 package com.draftlock.app
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 
 /**
- * Schedules [VaultRefreshWorker]: local 15-min truth-sync so usage,
- * blocking, stats and widget stay fresh with the app closed.
- * Minimum interval is 15 min (Android restriction) — same as the Docs monitor.
- * Call [ensure] from app start (idempotent, UPDATE policy).
+ * Schedules the headless blocking truth-sync.
+ *
+ * WorkManager is deliberately retained as a persistent background safety net.
+ * The AccessibilityService also reconciles state, so a delayed WorkManager run
+ * cannot by itself leave blocking disabled indefinitely.
  */
 object VaultRefreshScheduler {
     private const val WORK_NAME = "draftlock_vault_refresh"
@@ -18,17 +20,30 @@ object VaultRefreshScheduler {
     fun ensure(context: Context) {
         val request = PeriodicWorkRequestBuilder<VaultRefreshWorker>(
             15, TimeUnit.MINUTES
-        ).build()
+        )
+            .setBackoffCriteria(
+                BackoffPolicy.EXPONENTIAL,
+                1, TimeUnit.MINUTES
+            )
+            .addTag(WORK_NAME)
+            .build()
+
         try {
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP, // don't reset the 15-min clock on every launch
+                ExistingPeriodicWorkPolicy.KEEP,
                 request
             )
-        } catch (_: Exception) { /* WorkManager not ready yet — next launch retries */ }
+        } catch (e: Exception) {
+            android.util.Log.e("DraftLock", "Could not schedule vault refresh", e)
+        }
     }
 
     fun stop(context: Context) {
-        try { WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME) } catch (_: Exception) {}
+        try {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        } catch (e: Exception) {
+            android.util.Log.e("DraftLock", "Could not stop vault refresh", e)
+        }
     }
 }
