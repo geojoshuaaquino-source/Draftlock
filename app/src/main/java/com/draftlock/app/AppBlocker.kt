@@ -5,6 +5,12 @@ import android.content.ComponentName
 import android.content.Context
 import com.draftlock.app.admin.DraftLockDeviceAdminReceiver
 
+data class SuspensionResult(
+    val attempted: Boolean,
+    val failedPackages: List<String> = emptyList(),
+    val error: Exception? = null
+)
+
 class AppBlocker(private val context: Context) {
     private val dpm: DevicePolicyManager? = try {
         context.getSystemService(DevicePolicyManager::class.java)
@@ -34,29 +40,70 @@ class AppBlocker(private val context: Context) {
     }
 
     private fun isAccessibilityEnabled(): Boolean {
-        val enabled = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+        val enabled = android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
         return enabled.contains("${context.packageName}/${context.packageName}.DraftLockAccessibilityService")
     }
 
     fun isPopupBlockingAvailable(): Boolean = isAccessibilityEnabled()
 
-    fun suspend(packages: List<String>): List<String> {
-        val manager = dpm ?: return emptyList()
-        if (!canSuspendApps() || packages.isEmpty()) return emptyList()
+    fun suspendChecked(packages: List<String>): SuspensionResult {
+        val manager = dpm ?: return SuspensionResult(attempted = false)
+        if (!canSuspendApps()) return SuspensionResult(attempted = false)
+
+        val targets = packages.filter { it != context.packageName }.distinct()
+        if (targets.isEmpty()) return SuspensionResult(attempted = false)
+
         return try {
-            manager.setPackagesSuspended(admin, packages.filter { it != context.packageName }.toTypedArray(), true)?.toList() ?: emptyList()
-        } catch (_: SecurityException) {
-            emptyList()
-        } catch (_: Exception) { emptyList() }
+            val failed = manager
+                .setPackagesSuspended(admin, targets.toTypedArray(), true)
+                ?.toList()
+                .orEmpty()
+
+            if (failed.isNotEmpty()) {
+                android.util.Log.w("DraftLock", "Could not suspend packages: $failed")
+            }
+            SuspensionResult(attempted = true, failedPackages = failed)
+        } catch (e: SecurityException) {
+            android.util.Log.e("DraftLock", "Package suspension rejected", e)
+            SuspensionResult(attempted = true, error = e)
+        } catch (e: Exception) {
+            android.util.Log.e("DraftLock", "Package suspension failed", e)
+            SuspensionResult(attempted = true, error = e)
+        }
     }
 
-    fun unsuspend(packages: List<String>): List<String> {
-        val manager = dpm ?: return emptyList()
-        if (!canSuspendApps() || packages.isEmpty()) return emptyList()
+    fun unsuspendChecked(packages: List<String>): SuspensionResult {
+        val manager = dpm ?: return SuspensionResult(attempted = false)
+        if (!canSuspendApps()) return SuspensionResult(attempted = false)
+
+        val targets = packages.filter { it != context.packageName }.distinct()
+        if (targets.isEmpty()) return SuspensionResult(attempted = false)
+
         return try {
-            manager.setPackagesSuspended(admin, packages.filter { it != context.packageName }.toTypedArray(), false)?.toList() ?: emptyList()
-        } catch (_: SecurityException) {
-            emptyList()
-        } catch (_: Exception) { emptyList() }
+            val failed = manager
+                .setPackagesSuspended(admin, targets.toTypedArray(), false)
+                ?.toList()
+                .orEmpty()
+
+            if (failed.isNotEmpty()) {
+                android.util.Log.w("DraftLock", "Could not unsuspend packages: $failed")
+            }
+            SuspensionResult(attempted = true, failedPackages = failed)
+        } catch (e: SecurityException) {
+            android.util.Log.e("DraftLock", "Package unsuspension rejected", e)
+            SuspensionResult(attempted = true, error = e)
+        } catch (e: Exception) {
+            android.util.Log.e("DraftLock", "Package unsuspension failed", e)
+            SuspensionResult(attempted = true, error = e)
+        }
     }
+
+    fun suspend(packages: List<String>): List<String> =
+        suspendChecked(packages).failedPackages
+
+    fun unsuspend(packages: List<String>): List<String> =
+        unsuspendChecked(packages).failedPackages
 }
