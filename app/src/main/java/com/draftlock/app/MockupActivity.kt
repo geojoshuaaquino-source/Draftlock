@@ -988,8 +988,46 @@ private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {
     val logic by vm.logic.collectAsStateWithLifecycle()
     val autoSave by vm.googleAutoSave.collectAsStateWithLifecycle()
     val floatingOverlay by vm.floatingOverlay.collectAsStateWithLifecycle()
+    var pendingFloatingEnable by remember { mutableStateOf(false) }
     var resetText by remember(reset) { mutableStateOf(reset.toString()) }
     var quotaText by remember(quota) { mutableStateOf(quota.toString()) }
+
+    fun openOverlaySettings() {
+        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+        try {
+            context.startActivity(intent)
+            pendingFloatingEnable = true
+        } catch (_: android.content.ActivityNotFoundException) {
+            android.widget.Toast.makeText(
+                context,
+                "Android could not open the overlay permission screen.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        } catch (_: SecurityException) {
+            android.widget.Toast.makeText(
+                context,
+                "Android blocked the overlay permission screen.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, pendingFloatingEnable) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (
+                event == Lifecycle.Event.ON_RESUME &&
+                pendingFloatingEnable &&
+                !floatingOverlay &&
+                Settings.canDrawOverlays(context)
+            ) {
+                pendingFloatingEnable = false
+                vm.setFloatingOverlay(true)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -1061,13 +1099,9 @@ private fun MockSettings(vm: DraftLockViewModel, onApps: () -> Unit) {
                         checked = floatingOverlay,
                         onCheckedChange = { enabled ->
                             if (enabled && !Settings.canDrawOverlays(context)) {
-                                context.startActivity(
-                                    Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:" + context.packageName)
-                                    )
-                                )
+                                openOverlaySettings()
                             } else {
+                                pendingFloatingEnable = false
                                 vm.setFloatingOverlay(enabled)
                             }
                         }
