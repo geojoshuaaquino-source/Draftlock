@@ -86,6 +86,36 @@ class SettingsStore(private val context: Context) {
     suspend fun setSprintStartedAt(value: Long) = context.draftLockDataStore.edit { it[Keys.sprintStartedAt] = value }
     suspend fun setSprintEndAt(value: Long) = context.draftLockDataStore.edit { it[Keys.sprintEndAt] = value }
     suspend fun setMonitorEnabled(value: Boolean) = context.draftLockDataStore.edit { it[Keys.monitorEnabled] = value }
+
+    /**
+     * Atomically starts a new writing day and clears all state that belongs
+     * exclusively to the previous writing day.
+     */
+    suspend fun ensureCurrentDay(dayKey: String) {
+        val currentKey = todayKey.first()
+        val currentMonitorKey = monitorDayKey.first()
+
+        if (currentKey == dayKey && currentMonitorKey == dayKey) return
+
+        if (currentKey != dayKey && currentKey.isNotBlank()) {
+            // Preserve the finished day before switching keys.
+            recordCurrentDay()
+        }
+
+        context.draftLockDataStore.edit {
+            if ((it[Keys.todayKey] ?: "") != dayKey) {
+                it[Keys.todayWords] = 0
+                it[Keys.todayKey] = dayKey
+                it[Keys.overrideUsed] = false
+                it[Keys.overrideUntil] = 0L
+            }
+            if ((it[Keys.monitorDayKey] ?: "") != dayKey) {
+                it[Keys.monitorWords] = 0
+                it[Keys.monitorDayKey] = dayKey
+            }
+        }
+        recordCurrentDay()
+    }
     suspend fun setMonitorPrefix(value: String) = context.draftLockDataStore.edit { it[Keys.monitorPrefix] = value }
     suspend fun setMonitorWords(value: Int, key: String) = context.draftLockDataStore.edit { it[Keys.monitorWords] = value.coerceAtLeast(0); it[Keys.monitorDayKey] = key }
     suspend fun setMonitorCounts(value: String) = context.draftLockDataStore.edit { it[Keys.monitorCounts] = value }
