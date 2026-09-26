@@ -334,14 +334,20 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
         usageAccess = usage.hasUsageAccess()
         blockingAvailable = blocker.canSuspendApps()
         blockingDiagnostics = blocker.diagnostics()
-        if (!usageAccess) return
+
+        // Blocking itself does not depend on Usage Access. App-time requirements
+        // fail closed when the permission is missing, while writing-only locks
+        // can still be enforced across day rollover.
         viewModelScope.launch(Dispatchers.IO) {
-            val start = UsageTracker.periodStartMillis(resetMinutes.value)
-            val minutes = requirements.value.associate { it.packageName to usage.minutesForPackage(it.packageName, start) }
+            val reset = try { store.resetMinutes.first() } catch (_: Exception) { 0 }
+            val start = UsageTracker.periodStartMillis(reset)
+            val minutes = requirements.value.associate {
+                it.packageName to usage.minutesForPackage(it.packageName, start)
+            }
             withContext(kotlinx.coroutines.Dispatchers.Main) {
                 usageMinutes = minutes
-                applyBlocking()
             }
+            applyBlocking()
         }
     }
 
@@ -721,7 +727,11 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
 
     fun activateEmergencyOverride() = viewModelScope.launch {
         store.setOverride(System.currentTimeMillis() + 15 * 60_000L)
-        blocker.unsuspend(lockedApps.value.map { it.packageName })
+        try {
+            BlockingCoordinator(getApplication()).reconcile()
+        } catch (e: Exception) {
+            android.util.Log.e("DraftLock", "Emergency override reconciliation failed", e)
+        }
     }
 
     fun allConditionsComplete(): Boolean {
@@ -757,10 +767,12 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     }
 
     fun applyBlocking() {
-        viewModelScope.launch {
-            val shouldUnlock = allConditionsComplete() || overrideUntil.value > System.currentTimeMillis()
-            val packages = lockedApps.value.filter { it.enabled }.map { it.packageName }
-            if (shouldUnlock) blocker.unsuspend(packages) else blocker.suspend(packages)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                BlockingCoordinator(getApplication()).reconcile()
+            } catch (e: Exception) {
+                android.util.Log.e("DraftLock", "Foreground blocking reconciliation failed", e)
+            }
         }
     }
 
