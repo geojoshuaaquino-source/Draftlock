@@ -80,6 +80,7 @@ class FloatingMonitorService : Service() {
     private var bubble: TextView? = null
     private var wordsText: TextView? = null
     private var timerText: TextView? = null
+    private var sprintActionView: TextView? = null
     private var expanded = false
 
     override fun onCreate() {
@@ -226,7 +227,7 @@ class FloatingMonitorService : Service() {
         }
         sprintControls.addView(durationRow)
 
-        val sprintAction = TextView(displayContext).apply {
+        sprintActionView = TextView(displayContext).apply {
             text = "Start sprint"
             gravity = Gravity.CENTER
             textSize = 13f
@@ -274,7 +275,7 @@ class FloatingMonitorService : Service() {
                 }
             }
         }
-        sprintControls.addView(sprintAction, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(6) })
+        sprintControls.addView(sprintActionView, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(6) })
         sprintControls.addView(openDoc, LinearLayout.LayoutParams(-1, dp(40)).apply { topMargin = dp(6) })
 
         val detail = LinearLayout(displayContext).apply {
@@ -421,7 +422,7 @@ class FloatingMonitorService : Service() {
                 } else {
                     "No active sprint • ${minutes}m selected"
                 }
-                sprintAction.text = if (remaining > 0L) "Stop sprint" else "Start ${minutes}m sprint"
+                sprintActionView?.text = if (remaining > 0L) "Stop sprint" else "Start ${minutes}m sprint"
                 delay(1000)
             }
         }
