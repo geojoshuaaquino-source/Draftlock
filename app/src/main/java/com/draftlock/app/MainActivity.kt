@@ -221,6 +221,7 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     val lockedApps = db.dao().observeLockedApps().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val localDocs = db.dao().observeLocalDocs().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val recentDays = db.dao().observeRecentDays().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recentSprints = db.dao().observeRecentSprints().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val text = store.documentText.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val quota = store.quota.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1000)
     val resetMinutes = store.resetMinutes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
@@ -319,6 +320,8 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                 sprintRemainingSeconds = remaining
                 sprintRunning = remaining > 0L
                 if (endAt > 0L && remaining == 0L) {
+                    val startedAt = sprintStartedAt.value
+                    if (startedAt > 0L) finishSprintRecord(startedAt, completed = true)
                     store.setSprintStartedAt(0L)
                     store.setSprintEndAt(0L)
                 }
@@ -518,11 +521,38 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
     }
     fun startSprint() = viewModelScope.launch {
         val now = System.currentTimeMillis()
+        val planned = sprintMinutes.value.coerceIn(5, 120)
+        val typed = store.todayWords.first()
+        val monitored = if (store.monitorDayKey.first() == monitorDayKey) store.monitorWords.first() else 0
+        db.dao().upsertSprint(
+            com.draftlock.app.data.SprintSession(
+                startedAt = now,
+                plannedMinutes = planned,
+                wordsAtStart = typed + monitored
+            )
+        )
         store.setSprintStartedAt(now)
-        store.setSprintEndAt(now + sprintMinutes.value * 60_000L)
+        store.setSprintEndAt(now + planned * 60_000L)
         DraftLockWidget.updateAll(getApplication(), force = true)
     }
+    private fun finishSprintRecord(startedAt: Long, completed: Boolean) = viewModelScope.launch {
+        val session = db.dao().getSprintByStart(startedAt) ?: return@launch
+        if (session.endedAt > 0L) return@launch
+        val typed = store.todayWords.first()
+        val key = monitorDayKey
+        val monitored = if (store.monitorDayKey.first() == key) store.monitorWords.first() else 0
+        val currentTotal = typed + monitored
+        db.dao().upsertSprint(
+            session.copy(
+                endedAt = System.currentTimeMillis(),
+                wordsWritten = (currentTotal - session.wordsAtStart).coerceAtLeast(0),
+                completed = completed
+            )
+        )
+    }
     fun stopSprint() = viewModelScope.launch {
+        val startedAt = sprintStartedAt.value
+        if (startedAt > 0L) finishSprintRecord(startedAt, completed = false)
         store.setSprintStartedAt(0L)
         store.setSprintEndAt(0L)
         DraftLockWidget.updateAll(getApplication(), force = true)
