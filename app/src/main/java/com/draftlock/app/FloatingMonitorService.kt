@@ -201,7 +201,7 @@ class FloatingMonitorService : Service() {
             overlayView = null
             windowManager = null
             android.widget.Toast.makeText(this, "Could not display floating bubble: " + (e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
-            return
+            return false
         }
 
         var downX = 0f
