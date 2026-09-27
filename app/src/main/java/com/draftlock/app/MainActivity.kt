@@ -381,10 +381,17 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                 }
             }
             if (delta != 0) {
+                val dayKey = UsageTracker.periodStartMillis(resetMinutes.value).toString()
                 val current = store.todayWords.first()
-                store.setTodayWords(
-                    current + delta,
-                    UsageTracker.periodStartMillis(resetMinutes.value).toString()
+                val updated = (current + delta).coerceAtLeast(0)
+                store.setTodayWords(updated, dayKey)
+                val monitored = if (store.monitorDayKey.first() == dayKey) store.monitorWords.first() else 0
+                db.dao().upsertDay(
+                    com.draftlock.app.data.DailyRecord(
+                        dayKey = dayKey,
+                        words = updated + monitored,
+                        quota = quota.value
+                    )
                 )
             }
         }
@@ -472,6 +479,14 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                     monitorWords += result.added
                     monitorDayKeyState = key
                     store.setMonitorWords(monitorWords, key)
+                    val typedWords = if (store.todayKey.first() == key) store.todayWords.first() else 0
+                    db.dao().upsertDay(
+                        com.draftlock.app.data.DailyRecord(
+                            dayKey = key,
+                            words = typedWords + monitorWords,
+                            quota = quota.value
+                        )
+                    )
                     store.setMonitorCounts(result.countsJson)
                     store.setMonitorMeta(result.metaJson)
                     store.snapshotDay()
