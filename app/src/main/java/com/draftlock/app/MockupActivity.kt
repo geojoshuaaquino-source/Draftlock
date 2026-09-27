@@ -127,6 +127,7 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
     val localDocs by vm.localDocs.collectAsStateWithLifecycle()
     val sprintMinutes by vm.sprintMinutes.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    val recentSprints by vm.recentSprints.collectAsStateWithLifecycle()
     var page by remember { mutableStateOf(MockPage.HOME) }
     var onboarding by remember { mutableStateOf(true) }
     var overrideDialog by remember { mutableStateOf(false) }
@@ -186,7 +187,7 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                             MockPage.FOCUS -> MockFocus(vm, lockedApps, requirements) { page = MockPage.SETTINGS }
                             MockPage.EDITOR -> MockEditor(vm, text, name) { page = MockPage.LIBRARY }
                             MockPage.SETTINGS -> MockSettings(vm) { page = MockPage.FOCUS }
-                            MockPage.STATS -> MockStats(recentDays, words, quota)
+                            MockPage.STATS -> MockStats(vm, recentDays, recentSprints, words, quota)
                         }
                     }
                 }
@@ -561,7 +562,14 @@ private fun HomeStat(value: String, label: String, modifier: Modifier) { Column(
 private fun MetricCard(title: String, value: String, modifier: Modifier) { Column(modifier.clip(RoundedCornerShape(17.dp)).background(Color(0xA80B1931)).border(1.dp, Color(0x203B6494), RoundedCornerShape(17.dp)).padding(12.dp)) { Text(title, color = Color(0xFF6F86AA), fontSize = 8.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(4.dp)); Text(value, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1) } }
 
 @Composable
-private fun MockStats(days: List<com.draftlock.app.data.DailyRecord>, todayWords: Int, quota: Int) {
+private fun MockStats(vm: DraftLockViewModel, days: List<com.draftlock.app.data.DailyRecord>, sprints: List<com.draftlock.app.data.SprintSession>, todayWords: Int, quota: Int) {
+    val sprintStart by vm.sprintStartedAt.collectAsStateWithLifecycle()
+    val sprintEnd by vm.sprintEndAt.collectAsStateWithLifecycle()
+    val sprintMinutes by vm.sprintMinutes.collectAsStateWithLifecycle()
+    val active = sprintEnd > System.currentTimeMillis()
+    val timerProgress = if (active && sprintEnd > sprintStart) ((System.currentTimeMillis() - sprintStart).toFloat() / (sprintEnd - sprintStart)).coerceIn(0f, 1f) else 0f
+    val completedSprints = sprints.count { it.completed }
+    val sprintWords = sprints.sumOf { it.wordsWritten }
     val goalDays = days.count { it.quota > 0 && it.words >= it.quota }
     val total = days.sumOf { it.words }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp, 18.dp, 18.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -576,6 +584,40 @@ private fun MockStats(days: List<com.draftlock.app.data.DailyRecord>, todayWords
                 LinearProgressIndicator(progress = { (todayWords.toFloat() / quota.coerceAtLeast(1)).coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF5C8FFF), trackColor = Color(0x19365A8A))
                 Spacer(Modifier.height(10.dp))
                 Text(goalDays.toString() + " goal days • " + total + " words saved", color = Color(0xFF8196B7), fontSize = 11.sp)
+            }
+        }
+        item {
+            GlassSurface {
+                Text("SPRINTS", color = Color(0xFF6E86AA), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (active) "Sprint in progress" else "No active sprint", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(if (active) String.format("%02d:%02d remaining", vm.sprintRemainingSeconds / 60, vm.sprintRemainingSeconds % 60) else "${sprintMinutes} minute sprint selected", color = Color(0xFF8196B7), fontSize = 10.sp)
+                    }
+                    Text("${sprints.size} sessions", color = Color(0xFF71DDFF), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+                if (active) {
+                    Spacer(Modifier.height(7.dp))
+                    LinearProgressIndicator(progress = { timerProgress }, Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF8B78FF), trackColor = Color(0x19365A8A))
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("${completedSprints} completed • ${sprintWords} words written in recorded sprints", color = Color(0xFF8196B7), fontSize = 10.sp)
+            }
+        }
+        item { Text("SPRINT HISTORY", color = Color(0xFF6E86AA), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        if (sprints.isEmpty()) {
+            item { EmptyCard("No sprint history yet", "Sessions started from the app will be recorded from now on.") }
+        } else {
+            items(sprints, key = { "sprint-${it.id}" }) { session ->
+                GlassSurface {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(java.text.SimpleDateFormat("MMM d • h:mm a", java.util.Locale.getDefault()).format(java.util.Date(session.startedAt)), color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("${session.plannedMinutes} min • ${session.wordsWritten} words", color = Color(0xFF8196B7), fontSize = 10.sp)
+                        }
+                        Text(if (session.completed) "COMPLETED" else if (session.endedAt > 0L) "STOPPED" else "ACTIVE", color = if (session.completed) Color(0xFF71DDFF) else Color(0xFF9AABD0), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
         item { Text("DAILY HISTORY", color = Color(0xFF6E86AA), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
