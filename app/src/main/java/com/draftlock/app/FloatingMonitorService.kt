@@ -81,6 +81,7 @@ class FloatingMonitorService : Service() {
     private var wordsText: TextView? = null
     private var timerText: TextView? = null
     private var timerProgress: android.widget.ProgressBar? = null
+    private var wordsProgress: android.widget.ProgressBar? = null
     private var sprintActionView: TextView? = null
     private var expanded = false
 
@@ -179,6 +180,17 @@ class FloatingMonitorService : Service() {
             max = 1000
             progress = 0
             progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(120, 223, 255))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(70, 90, 120, 160))
+        }
+
+        wordsProgress = android.widget.ProgressBar(
+            displayContext,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = 1000
+            progress = 0
+            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(77, 141, 255))
             progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(70, 90, 120, 160))
         }
 
@@ -295,6 +307,7 @@ class FloatingMonitorService : Service() {
             visibility = View.GONE
             setPadding(dp(4), dp(8), dp(4), dp(4))
             addView(wordsText)
+            addView(wordsProgress, LinearLayout.LayoutParams(-1, dp(6)).apply { topMargin = dp(5) })
             addView(timerText)
             addView(timerProgress, LinearLayout.LayoutParams(-1, dp(6)).apply { topMargin = dp(5) })
             addView(sprintControls)
@@ -417,6 +430,7 @@ class FloatingMonitorService : Service() {
                 val words = effective.coerceAtLeast(0)
                 bubble?.text = words.toString() + "w"
                 wordsText?.text = words.toString() + " / " + quota + " words"
+                wordsProgress?.progress = ((words.toDouble() / quota.coerceAtLeast(1)) * 1000).toInt().coerceIn(0, 1000)
                 delay(500)
             }
         }
