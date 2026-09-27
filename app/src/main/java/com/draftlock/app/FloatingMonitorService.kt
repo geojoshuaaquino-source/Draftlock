@@ -177,8 +177,13 @@ class FloatingMonitorService : Service() {
             gravity = Gravity.CENTER
             background = rounded(Color.rgb(48, 59, 78), dp(18))
             setOnClickListener {
-                persistOverlayDisabled()
-                stopSelf()
+                isEnabled = false
+                scope.launch {
+                    // Persist the off switch before tearing down the service so
+                    // Android cannot restore the overlay from a stale preference.
+                    SettingsStore(applicationContext).setFloatingOverlay(false)
+                    stopSelf()
+                }
             }
         }
 
