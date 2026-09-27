@@ -572,6 +572,16 @@ private fun MockStats(vm: DraftLockViewModel, days: List<com.draftlock.app.data.
     val sprintWords = sprints.sumOf { it.wordsWritten }
     val goalDays = days.count { it.quota > 0 && it.words >= it.quota }
     val total = days.sumOf { it.words }
+    val orderedDays = days.sortedBy { it.dayKey.toLongOrNull() ?: 0L }
+    val currentStreak = run {
+        var streak = 0
+        for (day in orderedDays.asReversed()) {
+            if (day.quota > 0 && day.words >= day.quota) streak++ else break
+        }
+        streak
+    }
+    val chartDays = orderedDays.takeLast(14)
+    val chartMax = chartDays.maxOfOrNull { it.words }?.coerceAtLeast(1) ?: 1
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp, 18.dp, 18.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Writing stats", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -584,6 +594,27 @@ private fun MockStats(vm: DraftLockViewModel, days: List<com.draftlock.app.data.
                 LinearProgressIndicator(progress = { (todayWords.toFloat() / quota.coerceAtLeast(1)).coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF5C8FFF), trackColor = Color(0x19365A8A))
                 Spacer(Modifier.height(10.dp))
                 Text(goalDays.toString() + " goal days • " + total + " words saved", color = Color(0xFF8196B7), fontSize = 11.sp)
+            }
+        }
+        item {
+            GlassSurface {
+                Text("STREAK & DAILY OUTPUT", color = Color(0xFF6E86AA), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("$"+"{currentStreak} day streak", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text("$"+"{goalDays} goal days", color = Color(0xFF71DDFF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Text("Daily words • last "+chartDays.size+" recorded days", color = Color(0xFF8196B7), fontSize = 10.sp)
+                Row(Modifier.fillMaxWidth().height(92.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
+                    chartDays.forEach { day ->
+                        Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+                                Box(Modifier.fillMaxWidth(0.72f).fillMaxHeight((day.words.toFloat() / chartMax).coerceIn(0.04f, 1f)).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(if (day.quota > 0 && day.words >= day.quota) Color(0xFF71DDFF) else Color(0xFF5C8FFF)))
+                            }
+                            Text(java.text.SimpleDateFormat("d", java.util.Locale.getDefault()).format(java.util.Date(day.dayKey.toLongOrNull() ?: 0L)), color = Color(0xFF8196B7), fontSize = 8.sp)
+                        }
+                    }
+                }
             }
         }
         item {
