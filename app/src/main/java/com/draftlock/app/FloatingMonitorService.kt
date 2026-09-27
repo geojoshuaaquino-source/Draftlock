@@ -45,6 +45,9 @@ class FloatingMonitorService : Service() {
 
         fun start(context: Context) {
             if (!Settings.canDrawOverlays(context)) {
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    SettingsStore(context.applicationContext).setFloatingOverlay(false)
+                }
                 android.widget.Toast.makeText(context, "Allow DraftLock to display over other apps, then enable the floating monitor again.", android.widget.Toast.LENGTH_LONG).show()
                 return
             }
@@ -55,6 +58,9 @@ class FloatingMonitorService : Service() {
                 )
             } catch (e: RuntimeException) {
                 android.util.Log.e("DraftLockOverlay", "Could not start floating monitor service", e)
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    SettingsStore(context.applicationContext).setFloatingOverlay(false)
+                }
                 android.widget.Toast.makeText(context, "Floating monitor could not start: " + (e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
             }
         }
@@ -100,16 +106,21 @@ class FloatingMonitorService : Service() {
                 else 0
             )
 
-            showOverlay()
+            if (!showOverlay()) {
+                persistOverlayDisabled()
+                stopSelf()
+                return
+            }
             observeStore()
         } catch (e: RuntimeException) {
             android.util.Log.e("DraftLockOverlay", "Floating monitor initialization failed", e)
             android.widget.Toast.makeText(this, "Floating monitor failed: " + (e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
+            persistOverlayDisabled()
             stopSelf()
         }
     }
 
-    private fun showOverlay() {
+    private fun showOverlay(): Boolean {
         val displayContext = if (Build.VERSION.SDK_INT >= 30) {
             createDisplayContext(display).createWindowContext(
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -190,7 +201,6 @@ class FloatingMonitorService : Service() {
             overlayView = null
             windowManager = null
             android.widget.Toast.makeText(this, "Could not display floating bubble: " + (e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
-            stopSelf()
             return
         }
 
@@ -241,6 +251,13 @@ class FloatingMonitorService : Service() {
 
                 else -> true
             }
+        }
+        return true
+    }
+
+    private fun persistOverlayDisabled() {
+        scope.launch(Dispatchers.IO) {
+            SettingsStore(applicationContext).setFloatingOverlay(false)
         }
     }
 
