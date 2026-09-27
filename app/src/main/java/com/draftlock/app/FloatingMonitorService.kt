@@ -143,8 +143,8 @@ class FloatingMonitorService : Service() {
 
         val root = LinearLayout(displayContext).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = rounded(Color.argb(235, 9, 18, 35), dp(18))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = rounded(Color.argb(245, 9, 18, 35), dp(18))
         }
 
         bubble = TextView(displayContext).apply {
@@ -170,21 +170,34 @@ class FloatingMonitorService : Service() {
         }
 
         val close = TextView(displayContext).apply {
-            text = "Hide"
-            setTextColor(Color.rgb(155, 175, 205))
-            textSize = 11f
-            setPadding(0, dp(8), 0, 0)
-            setOnClickListener { collapse() }
+            text = "×"
+            contentDescription = "Close floating monitor"
+            setTextColor(Color.WHITE)
+            textSize = 24f
+            gravity = Gravity.CENTER
+            background = rounded(Color.rgb(48, 59, 78), dp(18))
+            setOnClickListener {
+                persistOverlayDisabled()
+                stopSelf()
+            }
         }
 
-        root.addView(bubble, LinearLayout.LayoutParams(dp(58), dp(58)))
+        val header = LinearLayout(displayContext).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(bubble, LinearLayout.LayoutParams(dp(58), dp(58)))
+            val spacer = View(displayContext)
+            addView(spacer, LinearLayout.LayoutParams(dp(8), 1))
+            addView(close, LinearLayout.LayoutParams(dp(36), dp(36)))
+        }
+        root.addView(header)
 
         val detail = LinearLayout(displayContext).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
+            setPadding(dp(4), dp(8), dp(4), dp(4))
             addView(wordsText)
             addView(timerText)
-            addView(close)
         }
         root.addView(detail)
 
@@ -194,9 +207,13 @@ class FloatingMonitorService : Service() {
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
+            // Keep the overlay bounded to its actual content; never let it cover
+            // the screen with an unconstrained/no-limits window.
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
             gravity = Gravity.TOP or Gravity.START
             x = dp(18)
             y = dp(220)
@@ -265,7 +282,9 @@ class FloatingMonitorService : Service() {
     }
 
     private fun persistOverlayDisabled() {
-        scope.launch(Dispatchers.IO) {
+        // Do not use the service scope here: onDestroy cancels it immediately
+        // after the close action stops the service.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             SettingsStore(applicationContext).setFloatingOverlay(false)
         }
     }
