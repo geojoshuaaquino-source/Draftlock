@@ -82,6 +82,8 @@ class FloatingMonitorService : Service() {
     private var timerText: TextView? = null
     private var timerProgress: android.widget.ProgressBar? = null
     private var wordsProgress: android.widget.ProgressBar? = null
+    private var compactTimerProgress: android.widget.ProgressBar? = null
+    private var compactWordsProgress: android.widget.ProgressBar? = null
     private var sprintActionView: TextView? = null
     private var expanded = false
 
@@ -216,6 +218,24 @@ class FloatingMonitorService : Service() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(bubble, LinearLayout.LayoutParams(dp(58), dp(58)))
+            val compactBars = LinearLayout(displayContext).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(6), 0, dp(4), 0)
+                compactWordsProgress = android.widget.ProgressBar(displayContext, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = 1000
+                    progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(77, 141, 255))
+                    progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(70, 90, 120, 160))
+                }
+                compactTimerProgress = android.widget.ProgressBar(displayContext, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = 1000
+                    progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(120, 223, 255))
+                    progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(70, 90, 120, 160))
+                }
+                addView(compactWordsProgress, LinearLayout.LayoutParams(dp(52), dp(5)).apply { bottomMargin = dp(7) })
+                addView(compactTimerProgress, LinearLayout.LayoutParams(dp(52), dp(5)))
+            }
+            addView(compactBars, LinearLayout.LayoutParams(dp(62), dp(58)))
             val spacer = View(displayContext)
             addView(spacer, LinearLayout.LayoutParams(dp(8), 1))
             addView(close, LinearLayout.LayoutParams(dp(36), dp(36)))
@@ -443,7 +463,7 @@ class FloatingMonitorService : Service() {
                 val words = effective.coerceAtLeast(0)
                 bubble?.text = words.toString() + "w"
                 wordsText?.text = words.toString() + " / " + quota + " words"
-                wordsProgress?.progress = ((words.toDouble() / quota.coerceAtLeast(1)) * 1000).toInt().coerceIn(0, 1000)
+                val wordProgress = ((words.toDouble() / quota.coerceAtLeast(1)) * 1000).toInt().coerceIn(0, 1000)\n                wordsProgress?.progress = wordProgress\n                compactWordsProgress?.progress = wordProgress
                 delay(500)
             }
         }
