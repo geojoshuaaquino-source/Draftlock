@@ -38,6 +38,15 @@ interface DraftLockDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDay(record: DailyRecord)
 
+    @Query("SELECT * FROM sprint_sessions ORDER BY startedAt DESC LIMIT 30")
+    fun observeRecentSprints(): Flow<List<SprintSession>>
+
+    @Query("SELECT * FROM sprint_sessions WHERE startedAt = :startedAt LIMIT 1")
+    suspend fun getSprintByStart(startedAt: Long): SprintSession?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertSprint(session: SprintSession): Long
+
     @Query("SELECT * FROM local_documents ORDER BY updatedAt DESC")
     fun observeLocalDocs(): kotlinx.coroutines.flow.Flow<List<LocalDocument>>
 
