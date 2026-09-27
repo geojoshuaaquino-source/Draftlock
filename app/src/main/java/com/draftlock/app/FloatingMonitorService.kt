@@ -12,6 +12,8 @@ import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.hardware.display.DisplayManager
+import android.view.Display
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -122,10 +124,17 @@ class FloatingMonitorService : Service() {
 
     private fun showOverlay(): Boolean {
         val displayContext = if (Build.VERSION.SDK_INT >= 30) {
-            createDisplayContext(display).createWindowContext(
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                null
-            )
+            // Service contexts may not be associated with a display. Resolve it explicitly.
+            val displayManager = getSystemService(DisplayManager::class.java)
+            val defaultDisplay = displayManager?.getDisplay(Display.DEFAULT_DISPLAY)
+            if (defaultDisplay != null) {
+                applicationContext.createDisplayContext(defaultDisplay).createWindowContext(
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    null
+                )
+            } else {
+                applicationContext
+            }
         } else {
             this
         }
