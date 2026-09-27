@@ -296,7 +296,12 @@ class DraftLockViewModel(application: android.app.Application) : AndroidViewMode
                 // stays cheap and avoids Google 429 rate-limit errors.
                 // Background (app closed) is still WorkManager ~15min — Android minimum.
                 if (monitorEnabledState && isGoogleConnected && !monitorChecking) monitorNow(manual = false)
-                delay(monitorIntervalSec.coerceIn(15, 300) * 1000L)
+                // During an active writing sprint, check at the fastest supported
+                // foreground cadence. Outside a sprint, respect the user's setting.
+                val sprintEnd = try { sprintEndAt.value } catch (_: Exception) { 0L }
+                val sprintActive = sprintEnd > System.currentTimeMillis()
+                val cadenceSeconds = if (sprintActive) 15 else monitorIntervalSec.coerceIn(15, 300)
+                delay(cadenceSeconds * 1000L)
             }
         }
         viewModelScope.launch {
