@@ -44,15 +44,18 @@ class FloatingMonitorService : Service() {
         private const val NOTIFICATION_ID = 8102
 
         fun start(context: Context) {
-            if (!Settings.canDrawOverlays(context)) return
+            if (!Settings.canDrawOverlays(context)) {
+                android.widget.Toast.makeText(context, "Allow DraftLock to display over other apps, then enable the floating monitor again.", android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
             try {
                 androidx.core.content.ContextCompat.startForegroundService(
                     context,
                     Intent(context, FloatingMonitorService::class.java)
                 )
-            } catch (_: RuntimeException) {
-                // Do not take down the app if the device rejects the FGS start.
-                // Android can reject background FGS starts or OEM-specific service launches.
+            } catch (e: RuntimeException) {
+                android.util.Log.e("DraftLockOverlay", "Could not start floating monitor service", e)
+                android.widget.Toast.makeText(context, "Floating monitor could not start: " + (e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
             }
         }
 
@@ -99,8 +102,9 @@ class FloatingMonitorService : Service() {
 
             showOverlay()
             observeStore()
-        } catch (_: RuntimeException) {
-            // A rejected FGS or overlay window must fail closed, not crash DraftLock.
+        } catch (e: RuntimeException) {
+            android.util.Log.e("DraftLockOverlay", "Floating monitor initialization failed", e)
+            android.widget.Toast.makeText(this, "Floating monitor failed: " + (e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
             stopSelf()
         }
     }
@@ -181,9 +185,11 @@ class FloatingMonitorService : Service() {
         overlayView = root
         try {
             windowManager?.addView(root, lp)
-        } catch (_: RuntimeException) {
+        } catch (e: RuntimeException) {
+            android.util.Log.e("DraftLockOverlay", "WindowManager.addView failed", e)
             overlayView = null
             windowManager = null
+            android.widget.Toast.makeText(this, "Could not display floating bubble: " + (e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
             stopSelf()
             return
         }
