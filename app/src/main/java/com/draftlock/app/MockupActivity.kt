@@ -56,7 +56,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-private enum class MockPage { HOME, LIBRARY, FOCUS, EDITOR, SETTINGS }
+private enum class MockPage { HOME, LIBRARY, FOCUS, EDITOR, SETTINGS, STATS }
 private data class InstalledApp(val packageName: String, val label: String, val icon: Bitmap?)
 
 class MockupActivity : ComponentActivity() {
@@ -126,6 +126,7 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
     val lockedApps by vm.lockedApps.collectAsStateWithLifecycle()
     val localDocs by vm.localDocs.collectAsStateWithLifecycle()
     val sprintMinutes by vm.sprintMinutes.collectAsStateWithLifecycle()
+    val recentDays by vm.recentDays.collectAsStateWithLifecycle()
     var page by remember { mutableStateOf(MockPage.HOME) }
     var onboarding by remember { mutableStateOf(true) }
     var overrideDialog by remember { mutableStateOf(false) }
@@ -185,6 +186,7 @@ fun DraftLockMockupApp(vm: DraftLockViewModel) {
                             MockPage.FOCUS -> MockFocus(vm, lockedApps, requirements) { page = MockPage.SETTINGS }
                             MockPage.EDITOR -> MockEditor(vm, text, name) { page = MockPage.LIBRARY }
                             MockPage.SETTINGS -> MockSettings(vm) { page = MockPage.FOCUS }
+                            MockPage.STATS -> MockStats(recentDays, words, quota)
                         }
                     }
                 }
@@ -282,7 +284,7 @@ private fun MockBottomBar(page: MockPage, onPage: (MockPage) -> Unit) {
         PressableSurface(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(17.dp)).background(Brush.horizontalGradient(listOf(Color(0xFF4D8DFF), Color(0xFF633BFF)))), { onPage(MockPage.EDITOR) }) {
             Icon(painterResource(R.drawable.ic_write), "Write", tint = Color.White, modifier = Modifier.size(22.dp))
         }
-        MockNav("Focus", R.drawable.ic_lock_closed, page == MockPage.FOCUS) { onPage(MockPage.FOCUS) }
+        MockNav("Stats", R.drawable.ic_analytics, page == MockPage.STATS) { onPage(MockPage.STATS) }
         MockNav("Settings", R.drawable.ic_analytics, page == MockPage.SETTINGS) { onPage(MockPage.SETTINGS) }
     }
 }
@@ -558,6 +560,44 @@ private fun HomeStat(value: String, label: String, modifier: Modifier) { Column(
 @Composable
 private fun MetricCard(title: String, value: String, modifier: Modifier) { Column(modifier.clip(RoundedCornerShape(17.dp)).background(Color(0xA80B1931)).border(1.dp, Color(0x203B6494), RoundedCornerShape(17.dp)).padding(12.dp)) { Text(title, color = Color(0xFF6F86AA), fontSize = 8.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(4.dp)); Text(value, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1) } }
 
+@Composable
+private fun MockStats(days: List<com.draftlock.app.data.DailyRecord>, todayWords: Int, quota: Int) {
+    val goalDays = days.count { it.quota > 0 && it.words >= it.quota }
+    val total = days.sumOf { it.words }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp, 18.dp, 18.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("Writing stats", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Today and your recent daily history", color = Color(0xFF8095B7), fontSize = 11.sp)
+        }
+        item {
+            GlassSurface {
+                Text("TODAY'S WORDS", color = Color(0xFF6E86AA), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text(todayWords.toString() + " / " + quota + " words", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                LinearProgressIndicator(progress = { (todayWords.toFloat() / quota.coerceAtLeast(1)).coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF5C8FFF), trackColor = Color(0x19365A8A))
+                Spacer(Modifier.height(10.dp))
+                Text(goalDays.toString() + " goal days • " + total + " words saved", color = Color(0xFF8196B7), fontSize = 11.sp)
+            }
+        }
+        item { Text("DAILY HISTORY", color = Color(0xFF6E86AA), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        if (days.isEmpty()) {
+            item { EmptyCard("No history recorded yet", "History will appear as daily totals are saved. Earlier days are not backfilled.") }
+        } else {
+            items(days, key = { it.dayKey }) { day ->
+                GlassSurface {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(day.dayKey.toLongOrNull() ?: 0L)), color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(day.words.toString() + " / " + day.quota + " words", color = Color(0xFF8196B7), fontSize = 10.sp)
+                        }
+                        Text(if (day.quota > 0 && day.words >= day.quota) "GOAL HIT" else ((day.words * 100 / day.quota.coerceAtLeast(1)).coerceAtMost(100)).toString() + "%", color = Color(0xFF71DDFF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(7.dp))
+                    LinearProgressIndicator(progress = { (day.words.toFloat() / day.quota.coerceAtLeast(1)).coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(8.dp)), color = Color(0xFF5C8FFF), trackColor = Color(0x19365A8A))
+                }
+            }
+        }
+    }
+}
 @Composable
 private fun MockLibrary(vm: DraftLockViewModel, localDocs: List<LocalDocument>, onEdit: () -> Unit) {
     val context = LocalContext.current
