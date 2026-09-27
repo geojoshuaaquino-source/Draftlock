@@ -80,6 +80,7 @@ class FloatingMonitorService : Service() {
     private var bubble: TextView? = null
     private var wordsText: TextView? = null
     private var timerText: TextView? = null
+    private var timerProgress: android.widget.ProgressBar? = null
     private var sprintActionView: TextView? = null
     private var expanded = false
 
@@ -168,6 +169,17 @@ class FloatingMonitorService : Service() {
             setTextColor(Color.rgb(120, 223, 255))
             textSize = 13f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+
+        timerProgress = android.widget.ProgressBar(
+            displayContext,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = 1000
+            progress = 0
+            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(120, 223, 255))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(70, 90, 120, 160))
         }
 
         val close = TextView(displayContext).apply {
@@ -284,6 +296,7 @@ class FloatingMonitorService : Service() {
             setPadding(dp(4), dp(8), dp(4), dp(4))
             addView(wordsText)
             addView(timerText)
+            addView(timerProgress, LinearLayout.LayoutParams(-1, dp(6)).apply { topMargin = dp(5) })
             addView(sprintControls)
         }
         root.addView(detail)
@@ -410,12 +423,20 @@ class FloatingMonitorService : Service() {
         timerJob = scope.launch {
             while (true) {
                 val endAt = store.sprintEndAt.first()
+                val startedAt = store.sprintStartedAt.first()
                 val minutes = store.sprintMinutes.first()
+                val now = System.currentTimeMillis()
                 val remaining = if (endAt > 0L) {
-                    max(0L, (endAt - System.currentTimeMillis()) / 1000L)
+                    max(0L, (endAt - now) / 1000L)
                 } else {
                     0L
                 }
+                val totalMillis = (endAt - startedAt).coerceAtLeast(1L)
+                val elapsedMillis = (now - startedAt).coerceAtLeast(0L)
+                timerProgress?.progress = if (remaining > 0L) {
+                    ((elapsedMillis.toDouble() / totalMillis) * 1000).toInt().coerceIn(0, 1000)
+                } else 0
+                timerProgress?.visibility = if (remaining > 0L) View.VISIBLE else View.GONE
 
                 timerText?.text = if (remaining > 0L) {
                     "Sprint  " + "%02d:%02d".format(remaining / 60, remaining % 60)
