@@ -192,12 +192,93 @@ class FloatingMonitorService : Service() {
         }
         root.addView(header)
 
+        val sprintControls = LinearLayout(displayContext).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(4), dp(8), dp(4), dp(4))
+        }
+        val durationRow = LinearLayout(displayContext).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        listOf(15, 25, 45, 60).forEach { minutes ->
+            val choice = TextView(displayContext).apply {
+                text = "${minutes}m"
+                gravity = Gravity.CENTER
+                textSize = 12f
+                setTextColor(Color.WHITE)
+                background = rounded(Color.rgb(48, 59, 78), dp(10))
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                setOnClickListener {
+                    scope.launch {
+                        SettingsStore(applicationContext).setSprintMinutes(minutes)
+                        android.widget.Toast.makeText(this@FloatingMonitorService, "Sprint set to ${minutes} minutes", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            val params = LinearLayout.LayoutParams(0, dp(36), 1f)
+            if (minutes != 15) params.marginStart = dp(4)
+            durationRow.addView(choice, params)
+        }
+        sprintControls.addView(durationRow)
+
+        val sprintAction = TextView(displayContext).apply {
+            text = "Start sprint"
+            gravity = Gravity.CENTER
+            textSize = 13f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(Color.BLACK)
+            background = rounded(Color.rgb(120, 223, 255), dp(10))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            setOnClickListener {
+                scope.launch {
+                    val store = SettingsStore(applicationContext)
+                    val endAt = store.sprintEndAt.first()
+                    if (endAt > System.currentTimeMillis()) {
+                        store.setSprintStartedAt(0L)
+                        store.setSprintEndAt(0L)
+                    } else {
+                        val now = System.currentTimeMillis()
+                        val minutes = store.sprintMinutes.first().coerceIn(5, 120)
+                        store.setSprintStartedAt(now)
+                        store.setSprintEndAt(now + minutes * 60_000L)
+                    }
+                }
+            }
+        }
+        val openDoc = TextView(displayContext).apply {
+            text = "Open selected Google Doc"
+            gravity = Gravity.CENTER
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            background = rounded(Color.rgb(48, 59, 78), dp(10))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            setOnClickListener {
+                scope.launch {
+                    val id = SettingsStore(applicationContext).googleDocumentId.first()
+                    if (id.isBlank()) {
+                        android.widget.Toast.makeText(this@FloatingMonitorService, "Select a Google Doc in DraftLock first", android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://docs.google.com/document/d/$id/edit"))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            android.widget.Toast.makeText(this@FloatingMonitorService, "Could not open Google Doc: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
+        sprintControls.addView(sprintAction, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(6) })
+        sprintControls.addView(openDoc, LinearLayout.LayoutParams(-1, dp(40)).apply { topMargin = dp(6) })
+
         val detail = LinearLayout(displayContext).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
             setPadding(dp(4), dp(8), dp(4), dp(4))
             addView(wordsText)
             addView(timerText)
+            addView(sprintControls)
         }
         root.addView(detail)
 
@@ -212,7 +293,7 @@ class FloatingMonitorService : Service() {
         ).apply {
             // Keep the overlay bounded to its actual content; never let it cover
             // the screen with an unconstrained/no-limits window.
-            width = WindowManager.LayoutParams.WRAP_CONTENT
+            width = dp(180)
             height = WindowManager.LayoutParams.WRAP_CONTENT
             gravity = Gravity.TOP or Gravity.START
             x = dp(18)
@@ -251,8 +332,11 @@ class FloatingMonitorService : Service() {
                     val dx = (event.rawX - downX).toInt()
                     val dy = (event.rawY - downY).toInt()
                     if (abs(dx) > dp(6) || abs(dy) > dp(6)) moved = true
-                    lp.x = startX + dx
-                    lp.y = startY + dy
+                    val metrics = resources.displayMetrics
+                    val maxX = (metrics.widthPixels - root.width).coerceAtLeast(0)
+                    val maxY = (metrics.heightPixels - root.height).coerceAtLeast(0)
+                    lp.x = (startX + dx).coerceIn(0, maxX)
+                    lp.y = (startY + dy).coerceIn(0, maxY)
                     try {
                         windowManager?.updateViewLayout(root, lp)
                     } catch (e: RuntimeException) {
@@ -320,6 +404,7 @@ class FloatingMonitorService : Service() {
         timerJob = scope.launch {
             while (true) {
                 val endAt = store.sprintEndAt.first()
+                val minutes = store.sprintMinutes.first()
                 val remaining = if (endAt > 0L) {
                     max(0L, (endAt - System.currentTimeMillis()) / 1000L)
                 } else {
@@ -329,8 +414,9 @@ class FloatingMonitorService : Service() {
                 timerText?.text = if (remaining > 0L) {
                     "Sprint  " + "%02d:%02d".format(remaining / 60, remaining % 60)
                 } else {
-                    "No active sprint"
+                    "No active sprint • ${minutes}m selected"
                 }
+                sprintAction.text = if (remaining > 0L) "Stop sprint" else "Start ${minutes}m sprint"
                 delay(1000)
             }
         }
