@@ -217,7 +217,17 @@ class FloatingMonitorService : Service() {
                     if (abs(dx) > dp(6) || abs(dy) > dp(6)) moved = true
                     lp.x = startX + dx
                     lp.y = startY + dy
-                    windowManager?.updateViewLayout(root, lp)
+                    try {
+                        windowManager?.updateViewLayout(root, lp)
+                    } catch (e: RuntimeException) {
+                        android.util.Log.e("DraftLockOverlay", "Could not move floating monitor", e)
+                        android.widget.Toast.makeText(
+                            this,
+                            "Floating monitor stopped while moving: " + (e.message ?: e.javaClass.simpleName),
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        stopSelf()
+                    }
                     true
                 }
 
