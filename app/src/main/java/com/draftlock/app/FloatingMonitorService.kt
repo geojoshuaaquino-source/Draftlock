@@ -264,11 +264,24 @@ class FloatingMonitorService : Service() {
                     val store = SettingsStore(applicationContext)
                     val endAt = store.sprintEndAt.first()
                     if (endAt > System.currentTimeMillis()) {
+                        val startedAt = store.sprintStartedAt.first()
+                        if (startedAt > 0L) finishSprintRecord(store, startedAt, completed = false)
                         store.setSprintStartedAt(0L)
                         store.setSprintEndAt(0L)
                     } else {
                         val now = System.currentTimeMillis()
                         val minutes = store.sprintMinutes.first().coerceIn(5, 120)
+                        val reset = store.resetMinutes.first()
+                        val dayKey = UsageTracker.periodStartMillis(reset).toString()
+                        val typed = if (store.todayKey.first() == dayKey) store.todayWords.first() else 0
+                        val monitored = if (store.monitorDayKey.first() == dayKey) store.monitorWords.first() else 0
+                        com.draftlock.app.data.DraftLockDatabase.get(applicationContext).dao().upsertSprint(
+                            com.draftlock.app.data.SprintSession(
+                                startedAt = now,
+                                plannedMinutes = minutes,
+                                wordsAtStart = typed + monitored
+                            )
+                        )
                         store.setSprintStartedAt(now)
                         store.setSprintEndAt(now + minutes * 60_000L)
                     }
@@ -452,6 +465,11 @@ class FloatingMonitorService : Service() {
                 } else 0
                 timerProgress?.visibility = if (remaining > 0L) View.VISIBLE else View.GONE
 
+                if (endAt > 0L && remaining == 0L) {
+                    if (startedAt > 0L) finishSprintRecord(store, startedAt, completed = true)
+                    store.setSprintStartedAt(0L)
+                    store.setSprintEndAt(0L)
+                }
                 timerText?.text = if (remaining > 0L) {
                     "Sprint  " + "%02d:%02d".format(remaining / 60, remaining % 60)
                 } else {
@@ -461,6 +479,22 @@ class FloatingMonitorService : Service() {
                 delay(1000)
             }
         }
+    }
+
+    private suspend fun finishSprintRecord(store: SettingsStore, startedAt: Long, completed: Boolean) {
+        val dao = com.draftlock.app.data.DraftLockDatabase.get(applicationContext).dao()
+        val session = dao.getSprintByStart(startedAt) ?: return
+        if (session.endedAt > 0L) return
+        val dayKey = UsageTracker.periodStartMillis(store.resetMinutes.first()).toString()
+        val typed = if (store.todayKey.first() == dayKey) store.todayWords.first() else 0
+        val monitored = if (store.monitorDayKey.first() == dayKey) store.monitorWords.first() else 0
+        dao.upsertSprint(
+            session.copy(
+                endedAt = System.currentTimeMillis(),
+                wordsWritten = (typed + monitored - session.wordsAtStart).coerceAtLeast(0),
+                completed = completed
+            )
+        )
     }
 
     private fun rounded(color: Int, radius: Int): android.graphics.drawable.GradientDrawable =
