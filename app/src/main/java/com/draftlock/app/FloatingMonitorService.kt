@@ -463,7 +463,9 @@ class FloatingMonitorService : Service() {
                 val words = effective.coerceAtLeast(0)
                 bubble?.text = words.toString() + "w"
                 wordsText?.text = words.toString() + " / " + quota + " words"
-                val wordProgress = ((words.toDouble() / quota.coerceAtLeast(1)) * 1000).toInt().coerceIn(0, 1000)\n                wordsProgress?.progress = wordProgress\n                compactWordsProgress?.progress = wordProgress
+                val wordProgress = ((words.toDouble() / quota.coerceAtLeast(1)) * 1000).toInt().coerceIn(0, 1000)
+                wordsProgress?.progress = wordProgress
+                compactWordsProgress?.progress = wordProgress
                 delay(500)
             }
         }
