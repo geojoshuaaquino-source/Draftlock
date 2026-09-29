@@ -99,7 +99,7 @@ class GoogleDocsRepository {
         return sb.toString().trimEnd('\n')
     }
 
-    fun findFiles(accessToken: String, nameQuery: String, prefixPrefilter: String = ""): List<RemoteFile> {
+    fun findFiles(accessToken: String, nameQuery: String, prefixPrefilter: String = "", maxResults: Int? = null): List<RemoteFile> {
         // Fetch the complete Google Docs index first, then filter locally.
         // When a prefix filter is supplied (monitor path), also prefilter server-side
         // with "name contains" to shrink the list before the per-doc Docs fetches.
@@ -134,7 +134,7 @@ class GoogleDocsRepository {
                 "&includeItemsFromAllDrives=true" +
                 "&supportsAllDrives=true" +
                 "&orderBy=modifiedTime%20desc" +
-                "&pageSize=1000" +
+                "&pageSize=${maxResults?.coerceIn(1, 1000) ?: 1000}" +
                 "&fields=$fields" +
                 encodedPageToken
 
@@ -161,14 +161,15 @@ class GoogleDocsRepository {
             }
 
             pageToken = json.optString("nextPageToken", "")
-        } while (pageToken.isNotBlank())
+        } while (pageToken.isNotBlank() && (maxResults == null || results.size < maxResults))
 
         val query = nameQuery.trim()
-        return if (query.isBlank()) {
+        val filtered = if (query.isBlank()) {
             results
         } else {
             results.filter { it.name.contains(query, ignoreCase = true) }
         }
+        return if (maxResults == null) filtered else filtered.take(maxResults)
     }
 
     private fun request(
