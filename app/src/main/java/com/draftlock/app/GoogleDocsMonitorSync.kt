@@ -40,7 +40,7 @@ object GoogleDocsMonitorSync {
         val meta = runCatching { JSONObject(metaJsonStr) }.getOrElse { JSONObject() }
         val cleanPrefix = prefix.trim()
 
-        val candidates = docsRepo.findFiles(token, "", cleanPrefix)
+        val candidates = docsRepo.findFiles(token, "", cleanPrefix, maxResults = MAX_DOCS)
             .filter { cleanPrefix.isBlank() || it.name.startsWith(cleanPrefix, ignoreCase = true) }
 
         val truncated = candidates.size > MAX_DOCS
